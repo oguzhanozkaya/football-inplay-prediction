@@ -10,12 +10,12 @@ dependencies = [
 ]
 
 [tool.uv.build-backend]
-module-name = ["main"]
-module-root = ""
-namespace = false
+module-name = ["src"]
+module-root = "src"
+namespace = true
 
 [project.scripts]
-main = "src.__main__:main"
+main = "src.main.__main__:main"
 
 [dependency-groups]
 dev = [

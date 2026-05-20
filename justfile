@@ -53,7 +53,7 @@ clean-outputs:
 # Clean and start docs website at localhost
 [group('docs')]
 docs:
-  rm -rf site/
+  rm -rf .site/
   uv run --only-group docs zensical serve
 
 # Build web page with clean cache

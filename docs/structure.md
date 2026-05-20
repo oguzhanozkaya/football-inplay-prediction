@@ -22,15 +22,15 @@ description: Project structure, file organization, and tooling reference.
 
 ## Documentation (`docs/`)
 
-| Path             | Purpose                                                    |
-| ---------------- | -----------------------------------------------------------|
-| `_assets`        | Documentation assets, extra.css, extra.js, and logo.svg    |
-| `index.md`       | Documentation home                                         |
-| `spec.md`        | Usage guide and product specifications                     |
-| `development.md` | Development rules and workflow                             |
-| `structure.md`   | Repo Map, project structure, and deployment                |
-| `standarts.md`   | Internal architecture                                      |
-| `roadmap.md`     | Plan, status, and roadmap                                  |
+| Path             | Purpose                                                 |
+| ---------------- | ------------------------------------------------------- |
+| `_assets`        | Documentation assets, extra.css, extra.js, and logo.svg |
+| `index.md`       | Documentation home                                      |
+| `spec.md`        | Usage guide and product specifications                  |
+| `development.md` | Development rules and workflow                          |
+| `structure.md`   | Repo Map, project structure, and deployment             |
+| `standarts.md`   | Internal architecture                                   |
+| `roadmap.md`     | Plan, status, and roadmap                               |
 
 ### Deployment
 

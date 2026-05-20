@@ -25,8 +25,18 @@ fix:
 # Check code: format and lint
 [group('qual')]
 check:
+  bunx prettier --log-level warn --check .
   uv run ruff format . --check
   uv run ruff check .
+
+# Run tests
+[group('qual')]
+test:
+  echo "Tests"
+
+# Full check + test gate (github ci runs this command)
+[group('qual')]
+ci: check test
 
 
 # Remove build artifacts

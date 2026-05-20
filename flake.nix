@@ -16,6 +16,7 @@
     pkgs-dev = with pkgs; [
       mermaid-cli
       cudatoolkit
+      bun
       uv
       pkg-config
     ];

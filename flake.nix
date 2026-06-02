@@ -1,62 +1,100 @@
 {
-  description = "inflation-forecasting flake";
+  description = "turkish-inflation-forecasting flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs }:
-  let
-    name = "inflation-forecasting-flake";
+  outputs =
+    { self, nixpkgs }:
+    let
+      project = "turkish-inflation-forecasting";
 
-    pkgs-common = with pkgs; [
-      just
-    ];
-
-    pkgs-dev = with pkgs; [
-      mermaid-cli
-      cudatoolkit
-      bun
-      uv
-      pkg-config
-    ];
-
-    pkgs-docs = with pkgs; [
-      uv
-    ];
-
-    pkgs-shell-default = pkgs-common ++ pkgs-dev ++ pkgs-docs;
-    pkgs-shell-docs = pkgs-common ++ pkgs-docs;
-
-    env = {
-      CUDA_PATH = "${pkgs.cudatoolkit}";
-    };
-
-    shellHook = ''
-      echo "- ${name} shell activated."
-    '';
-
-    system = "x86_64-linux";
-    pkgs = import nixpkgs {
-      inherit system;
-      config = {
-        allowUnfree = true;
-        cudaSupport = true;
-      };
-    };
-  in {
-    devShells.${system} = {
-      default = pkgs.mkShell {
-        inherit name;
-        inherit env;
-        inherit shellHook;
-        packages = pkgs-shell-default;
-        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath pkgs-shell-default;
+      system = "x86_64-linux";
+      pkgs = import nixpkgs {
+        inherit system;
+        config = {
+          allowUnfree = true;
+          cudaSupport = true;
+        };
       };
 
-      ci-docs = pkgs.mkShell {
-        packages = pkgs-shell-docs;
+      base = {
+        packages = with pkgs; [
+          just
+        ];
+
+        env = { };
+
+        shellHook = "";
       };
+
+      shells = {
+        dev = {
+          packages = with pkgs; [
+            nixfmt
+            nixd
+            mermaid-cli
+            cudatoolkit
+            bun
+            uv
+            pkg-config
+          ];
+
+          env = {
+            CUDA_PATH = "${pkgs.cudatoolkit}";
+          };
+        };
+
+        docs = {
+          packages = with pkgs; [
+            uv
+          ];
+        };
+
+      };
+    in
+    {
+      devShells.${system} =
+        builtins.mapAttrs
+          (
+            shellName: shell:
+            let
+              name = "${project}_${shellName}_shell";
+              packages = pkgs.lib.unique (base.packages ++ (shell.packages or [ ]));
+              shellHook = pkgs.lib.concatStringsSep "\n" [
+                base.shellHook
+                (shell.shellHook or "")
+                ''echo "> ${name}"''
+              ];
+              env = (base.env or { }) // (shell.env or { });
+              LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath packages;
+            in
+            pkgs.mkShell {
+              inherit
+                name
+                packages
+                env
+                shellHook
+                LD_LIBRARY_PATH
+                ;
+            }
+          )
+          (
+            shells
+            // {
+              default = {
+                packages = pkgs.lib.unique (
+                  pkgs.lib.flatten (map (shell: shell.packages or [ ]) (builtins.attrValues shells))
+                );
+                env = pkgs.lib.foldl' (acc: env: acc // env) { } (
+                  map (shell: shell.env or { }) (builtins.attrValues shells)
+                );
+                shellHook = pkgs.lib.concatStringsSep "\n" (
+                  map (shell: shell.shellHook or "") (builtins.attrValues shells)
+                );
+              };
+            }
+          );
     };
-  };
 }

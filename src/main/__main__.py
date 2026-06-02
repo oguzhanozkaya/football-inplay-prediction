@@ -1,5 +1,6 @@
 """Entry point."""
 
+
 def main() -> None:
     print("hello world")
 

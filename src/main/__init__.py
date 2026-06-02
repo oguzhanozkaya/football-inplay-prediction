@@ -1,1 +1,1 @@
-"""Turkish Inflation Forecasting"""
+"""Inflation Forecasting"""

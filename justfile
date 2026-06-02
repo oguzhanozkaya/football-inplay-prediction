@@ -1,4 +1,4 @@
-# Turkish Inflation Forecasting - Project Commands
+# Inflation Forecasting - Project Commands
 # Usage: just <recipe>
 # Run `just --list` to see all available recipes.
 

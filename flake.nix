@@ -1,5 +1,5 @@
 {
-  description = "turkish-inflation-forecasting flake";
+  description = "inflation-forecasting flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -7,7 +7,7 @@
 
   outputs = { self, nixpkgs }:
   let
-    name = "turkish-inflation-forecasting-flake";
+    name = "inflation-forecasting-flake";
 
     pkgs-common = with pkgs; [
       just

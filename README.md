@@ -1,8 +1,8 @@
-# Turkish Inflation Forecasting
+# Inflation Forecasting
 
-**[Web Page and Documentation](https://oguzhanozkaya.github.io/turkish-inflation-forecasting/)**
+**[Web Page and Documentation](https://oguzhanozkaya.github.io/inflation-forecasting/)**
 
-Forecasting Turkish inflation using economic indicators and deep learning.
+Forecasting inflation using economic indicators and deep learning.
 
 **Student**: Oğuzhan Özkaya
 

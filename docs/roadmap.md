@@ -8,27 +8,27 @@ description: Tasks, priorities, known bugs, and the project roadmap.
 
 The repository is in the foundation stage. The project structure, reproducibility contract, command workflow, and implementation milestones are documented. The next goal is to replace the stage entrypoint placeholders with real data and modeling logic.
 
-| Area                     | Status                 |
-| ------------------------ | ---------------------- |
-| Documentation structure  | In progress            |
-| Python package structure | Foundation implemented |
-| Command workflow         | Foundation implemented |
-| Data download pipeline   | Planned                |
-| Text collection pipeline | Planned                |
-| Feature generation       | Planned                |
-| Baselines                | Planned                |
-| Deep learning models     | Planned                |
-| Evaluation reports       | Planned                |
-| Article draft            | Planned                |
+| Area                     | Status                          |
+| ------------------------ | ------------------------------- |
+| Documentation structure  | In progress                     |
+| Python package structure | Foundation implemented          |
+| Command workflow         | Foundation implemented          |
+| Data download pipeline   | Foundation implemented          |
+| Text collection pipeline | Metadata foundation implemented |
+| Feature generation       | Planned                         |
+| Baselines                | Planned                         |
+| Deep learning models     | Planned                         |
+| Evaluation reports       | Planned                         |
+| Article draft            | Planned                         |
 
 ## Active Tasks
 
 | Priority | Task                                       | Exit Criteria                                                        |
 | -------- | ------------------------------------------ | -------------------------------------------------------------------- |
-| High     | Define source registry                     | Numeric and text sources have documented download metadata           |
-| High     | Build CPI target pipeline                  | CPI MoM target is reproducibly generated without leakage             |
-| High     | Implement official text collection         | Text documents and metadata are downloaded reproducibly              |
-| High     | Replace stage placeholders with real logic | `just download`, `preprocess`, and `features` produce real artifacts |
+| High     | Expand macro-financial source registry     | FX, policy rate, commodity, and market sources are downloadable      |
+| High     | Implement feature generation               | `just features` produces model-ready numeric and text feature tables |
+| High     | Build monthly text windows                 | Text documents are grouped by forecast-origin cutoff                 |
+| High     | Add leakage tests for feature availability | Cutoff rules are tested for numeric and text inputs                  |
 
 ## Milestones
 
@@ -100,13 +100,18 @@ The repository is in the foundation stage. The project structure, reproducibilit
 - `just` exposes pipeline, quality, test, and documentation commands.
 - Generated `data/` and `output/` directory placeholders are tracked while generated contents are ignored.
 - Initial smoke tests cover path setup and stage entrypoint behavior.
+- Source registry exists for official CBRT CPI and MPC text listing pages.
+- `just download` writes raw official source snapshots, official CBRT MPC document pages, and a source manifest.
+- `just preprocess` writes `data/interim/cpi_mom.parquet` and `data/interim/text_documents.parquet`.
+- `data/interim/text_documents.parquet` includes document metadata, publication dates, clean body text, and body length counts.
+- Tests cover CPI target alignment, source registry integrity, manifest writing, official text metadata extraction, and body extraction.
 
 ## Limitations
 
-- The current repository has runnable stage placeholders, not a complete forecasting pipeline.
-- Stage-level data and modeling commands are registered but their real implementation is pending.
-- Data source availability and publication-delay handling still need implementation validation.
-- Text collection should start with stable official sources before broader news scraping.
+- `just features`, `train`, `evaluate`, and `plots` are still placeholders.
+- Macro-financial indicators beyond CPI are not implemented yet.
+- Text sources are currently limited to official CBRT MPC decisions and summaries; broader news sources are not implemented yet.
+- Publication-delay handling beyond target-month alignment still needs implementation validation.
 
 ## Future Work
 

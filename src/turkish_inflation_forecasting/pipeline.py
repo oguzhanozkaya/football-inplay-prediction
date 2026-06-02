@@ -7,6 +7,8 @@ hold the stage behavior so entrypoint modules stay small and testable.
 from __future__ import annotations
 
 from turkish_inflation_forecasting.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+from turkish_inflation_forecasting.data.download import DownloadError, download_sources
+from turkish_inflation_forecasting.data.preprocess import PreprocessError, preprocess_raw_sources
 
 
 def _run_pending_stage(stage_name: str, next_step: str, paths: ProjectPaths = DEFAULT_PATHS) -> int:
@@ -17,11 +19,29 @@ def _run_pending_stage(stage_name: str, next_step: str, paths: ProjectPaths = DE
 
 
 def run_download(paths: ProjectPaths = DEFAULT_PATHS) -> int:
-    return _run_pending_stage("download", "source registry and download logic are not implemented yet.", paths)
+    try:
+        records = download_sources(paths)
+    except DownloadError as exc:
+        print(f"download: {exc}")
+        return 1
+    print(f"download: downloaded {len(records)} raw sources.")
+    print(f"download: manifest written to {(paths.raw_data / 'source_manifest.json').relative_to(paths.root)}")
+    return 0
 
 
 def run_preprocess(paths: ProjectPaths = DEFAULT_PATHS) -> int:
-    return _run_pending_stage("preprocess", "raw source cleaning is not implemented yet.", paths)
+    try:
+        result = preprocess_raw_sources(paths)
+    except (PreprocessError, ValueError) as exc:
+        print(f"preprocess: {exc}")
+        return 1
+    cpi_target_path = result.cpi_target_path.relative_to(paths.root)
+    print(f"preprocess: wrote {result.cpi_target_rows} CPI target rows to {cpi_target_path}")
+    print(
+        "preprocess: wrote "
+        f"{result.text_document_rows} text document rows to {result.text_documents_path.relative_to(paths.root)}"
+    )
+    return 0
 
 
 def run_features(paths: ProjectPaths = DEFAULT_PATHS) -> int:

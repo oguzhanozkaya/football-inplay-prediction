@@ -69,6 +69,16 @@ The package name is `turkish_inflation_forecasting`. The import path looks like:
 from turkish_inflation_forecasting.data import preprocess
 ```
 
+Current data modules:
+
+| Path                 | Responsibility                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `data/sources.py`    | Source registry for official numeric and text sources                                |
+| `data/download.py`   | Raw HTML downloads, document page downloads, registry snapshot, and manifest writing |
+| `data/cpi.py`        | CBRT Consumer Prices parsing and CPI MoM target construction                         |
+| `data/text.py`       | CBRT text listing metadata and document body extraction                              |
+| `data/preprocess.py` | Stage coordinator that writes initial interim tables                                 |
+
 ## Data Directories
 
 | Path              | Purpose                                              | Git Policy |
@@ -79,6 +89,8 @@ from turkish_inflation_forecasting.data import preprocess
 | `tests/fixtures/` | Tiny deterministic files used by tests               | committed  |
 
 Full datasets should not be committed. The repository should commit the code and source definitions needed to reproduce them.
+
+The initial download stage writes `source_registry.json`, `source_manifest.json`, official CBRT CPI HTML, official CBRT MPC listing HTML, and official CBRT MPC document HTML pages under `data/raw/`. The initial preprocess stage writes `cpi_mom.parquet` and `text_documents.parquet` under `data/interim/`.
 
 ## Output Directories
 

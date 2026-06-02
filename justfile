@@ -1,7 +1,15 @@
-# Inflation Forecasting - Project Commands
+# Project recipes
 # Usage: just <recipe>
 # Run `just --list` to see all available recipes.
 
+# Default environemnt variables
+export TIF_SEED := "447"
+export TIF_EPOCHS := "200"
+export TIF_PATIENCE := "60"
+export TIF_BATCH_SIZE := "32"
+export TIF_LEARNING_RATE := "0.0001"
+export TIF_RANDOM_FOREST_TREES := "200"
+export TIF_DEVICE := "cuda"
 
 # Sync python environment
 [group('dev')]
@@ -9,40 +17,40 @@ sync:
   uv sync
 
 # Run the full pipeline
-[default]
 [group('run')]
 run:
-  uv run turkish-inflation-run
+  uv run tif-run
 
 # Download numeric data and text sources
 [group('run')]
 download:
-  uv run turkish-inflation-download
+  uv run tif-download
 
 # Clean raw source files and build interim tables
 [group('run')]
 preprocess:
-  uv run turkish-inflation-preprocess
+  uv run tif-preprocess
 
 # Build model-ready numeric and text features
 [group('run')]
 features:
-  uv run turkish-inflation-features
+  uv run tif-features
 
 # Train baselines and deep learning models
 [group('run')]
+[default]
 train:
-  uv run turkish-inflation-train
+  uv run tif-train
 
 # Evaluate models on chronological splits
 [group('run')]
 evaluate:
-  uv run turkish-inflation-evaluate
+  uv run tif-evaluate
 
 # Generate figures for reports and article drafts
 [group('run')]
 plots:
-  uv run turkish-inflation-plots
+  uv run tif-plots
 
 
 # Fix: format and lint
@@ -77,7 +85,10 @@ clean:
 # Remove all output and generated artifacts
 [group('clean')]
 clean-outputs:
-  rm -rf output/figures/* output/models/* output/predictions/* output/reports/*
+  rm -rf output/figures/*
+  rm -rf output/models/*
+  rm -rf output/predictions/*
+  rm -rf output/reports/*
 
 
 # Clean and start docs website at localhost

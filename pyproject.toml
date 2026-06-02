@@ -22,13 +22,13 @@ module-name = "turkish_inflation_forecasting"
 module-root = "src"
 
 [project.scripts]
-turkish-inflation-download = "turkish_inflation_forecasting.entrypoints.download:main"
-turkish-inflation-preprocess = "turkish_inflation_forecasting.entrypoints.preprocess:main"
-turkish-inflation-features = "turkish_inflation_forecasting.entrypoints.features:main"
-turkish-inflation-train = "turkish_inflation_forecasting.entrypoints.train:main"
-turkish-inflation-evaluate = "turkish_inflation_forecasting.entrypoints.evaluate:main"
-turkish-inflation-plots = "turkish_inflation_forecasting.entrypoints.plots:main"
-turkish-inflation-run = "turkish_inflation_forecasting.entrypoints.run:main"
+tif-download = "turkish_inflation_forecasting.entrypoints.download:main"
+tif-preprocess = "turkish_inflation_forecasting.entrypoints.preprocess:main"
+tif-features = "turkish_inflation_forecasting.entrypoints.features:main"
+tif-train = "turkish_inflation_forecasting.entrypoints.train:main"
+tif-evaluate = "turkish_inflation_forecasting.entrypoints.evaluate:main"
+tif-plots = "turkish_inflation_forecasting.entrypoints.plots:main"
+tif-run = "turkish_inflation_forecasting.entrypoints.run:main"
 
 [dependency-groups]
 dev = [

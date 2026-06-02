@@ -16,8 +16,11 @@
         config = {
           allowUnfree = true;
           cudaSupport = true;
+          cudaVersion = "12";
         };
       };
+
+      nvidiaPackage = pkgs.linuxPackages.nvidiaPackages.stable;
 
       base = {
         packages = with pkgs; [
@@ -35,11 +38,41 @@
             nixfmt
             nixd
             mermaid-cli
-            cudatoolkit
             bun
             uv
             pkg-config
           ];
+        };
+
+        cuda = {
+          packages = with pkgs; [
+            ffmpeg
+            fmt.dev
+            cudaPackages.cuda_cudart
+            cudatoolkit
+            cudaPackages.cudnn
+            libGLU
+            libGL
+            libxi
+            libxmu
+            freeglut
+            libxext
+            libx11
+            libxv
+            libxrandr
+            zlib
+            ncurses
+            stdenv .cc
+            binutils
+          ];
+
+          shellHook = ''
+            export CUDA_PATH=${pkgs.cudatoolkit}
+            export EXTRA_CCFLAGS="-I/usr/include"
+            export CMAKE_PREFIX_PATH="${pkgs.fmt.dev}:$CMAKE_PREFIX_PATH"
+            export PKG_CONFIG_PATH="${pkgs.fmt.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export LD_LIBRARY_PATH="/run/opengl-driver/lib:/run/opengl-driver-32/lib:$LD_LIBRARY_PATH"
+          '';
 
           env = {
             CUDA_PATH = "${pkgs.cudatoolkit}";

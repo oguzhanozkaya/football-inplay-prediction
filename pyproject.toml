@@ -18,17 +18,17 @@ dependencies = [
 ]
 
 [tool.uv.build-backend]
-module-name = "turkish_inflation_forecasting"
+module-name = "tif"
 module-root = "src"
 
 [project.scripts]
-tif-download = "turkish_inflation_forecasting.entrypoints.download:main"
-tif-preprocess = "turkish_inflation_forecasting.entrypoints.preprocess:main"
-tif-features = "turkish_inflation_forecasting.entrypoints.features:main"
-tif-train = "turkish_inflation_forecasting.entrypoints.train:main"
-tif-evaluate = "turkish_inflation_forecasting.entrypoints.evaluate:main"
-tif-plots = "turkish_inflation_forecasting.entrypoints.plots:main"
-tif-run = "turkish_inflation_forecasting.entrypoints.run:main"
+tif-download = "tif.entrypoints.download:main"
+tif-preprocess = "tif.entrypoints.preprocess:main"
+tif-features = "tif.entrypoints.features:main"
+tif-train = "tif.entrypoints.train:main"
+tif-evaluate = "tif.entrypoints.evaluate:main"
+tif-plots = "tif.entrypoints.plots:main"
+tif-run = "tif.entrypoints.run:main"
 
 [dependency-groups]
 dev = [

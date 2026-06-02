@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from turkish_inflation_forecasting.data.fx import parse_cbrt_fx_xml
-from turkish_inflation_forecasting.data.sources import (
+from tif.data.fx import parse_cbrt_fx_xml
+from tif.data.sources import (
     CBRT_FX_MONTH_END,
     FRED_BRENT_OIL,
     FRED_TURKEY_INDUSTRIAL_PRODUCTION,

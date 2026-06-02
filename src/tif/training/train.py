@@ -19,9 +19,9 @@ from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
-from turkish_inflation_forecasting.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
-from turkish_inflation_forecasting.features.build import MAX_TEXT_TOKENS
-from turkish_inflation_forecasting.models.deep import FusionRegressor, NumericGRU, NumericMLP, TextCNNRegressor
+from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+from tif.features.build import MAX_TEXT_TOKENS
+from tif.models.deep import FusionRegressor, NumericGRU, NumericMLP, TextCNNRegressor
 
 LAG_FEATURE_PATTERN = re.compile(r"(?P<base>.+)_lag_(?P<lag>\d+)$")
 SEQUENCE_STEPS = (12, 6, 3, 2, 1, 0)

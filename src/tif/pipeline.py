@@ -6,9 +6,9 @@ hold the stage behavior so entrypoint modules stay small and testable.
 
 from __future__ import annotations
 
-from turkish_inflation_forecasting.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
-from turkish_inflation_forecasting.data.download import DownloadError, download_sources
-from turkish_inflation_forecasting.data.preprocess import PreprocessError, preprocess_raw_sources
+from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+from tif.data.download import DownloadError, download_sources
+from tif.data.preprocess import PreprocessError, preprocess_raw_sources
 
 
 def _run_pending_stage(stage_name: str, next_step: str, paths: ProjectPaths = DEFAULT_PATHS) -> int:
@@ -53,7 +53,7 @@ def run_preprocess(paths: ProjectPaths = DEFAULT_PATHS) -> int:
 
 
 def run_features(paths: ProjectPaths = DEFAULT_PATHS) -> int:
-    from turkish_inflation_forecasting.features.build import FeatureGenerationError, generate_features
+    from tif.features.build import FeatureGenerationError, generate_features
 
     try:
         result = generate_features(paths)
@@ -73,7 +73,7 @@ def run_features(paths: ProjectPaths = DEFAULT_PATHS) -> int:
 
 
 def run_train(paths: ProjectPaths = DEFAULT_PATHS) -> int:
-    from turkish_inflation_forecasting.training.train import TrainingError, train_models
+    from tif.training.train import TrainingError, train_models
 
     try:
         result = train_models(paths)
@@ -89,7 +89,7 @@ def run_train(paths: ProjectPaths = DEFAULT_PATHS) -> int:
 
 
 def run_evaluate(paths: ProjectPaths = DEFAULT_PATHS) -> int:
-    from turkish_inflation_forecasting.evaluation.metrics import EvaluationError, evaluate_predictions
+    from tif.evaluation.metrics import EvaluationError, evaluate_predictions
 
     try:
         result = evaluate_predictions(paths)
@@ -102,7 +102,7 @@ def run_evaluate(paths: ProjectPaths = DEFAULT_PATHS) -> int:
 
 
 def run_plots(paths: ProjectPaths = DEFAULT_PATHS) -> int:
-    from turkish_inflation_forecasting.visualization.plots import PlotError, generate_plots
+    from tif.visualization.plots import PlotError, generate_plots
 
     try:
         result = generate_plots(paths)

@@ -9,7 +9,7 @@ from urllib.parse import urljoin, urlparse
 import pandas as pd
 from bs4 import BeautifulSoup
 
-from turkish_inflation_forecasting.data.sources import SourceDefinition
+from tif.data.sources import SourceDefinition
 
 CBRT_BASE_URL = "https://www.tcmb.gov.tr"
 ANNOUNCEMENT_CODE_PATTERN = re.compile(r"ANO(?P<year>\d{4})-(?P<number>\d{2})")

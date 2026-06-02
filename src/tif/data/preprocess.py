@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from turkish_inflation_forecasting.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
-from turkish_inflation_forecasting.data.cpi import preprocess_cpi_target
-from turkish_inflation_forecasting.data.numeric import preprocess_numeric_sources
-from turkish_inflation_forecasting.data.sources import CBRT_CONSUMER_PRICES, SourceDefinition, sources_by_category
-from turkish_inflation_forecasting.data.text import preprocess_text_documents
+from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+from tif.data.cpi import preprocess_cpi_target
+from tif.data.numeric import preprocess_numeric_sources
+from tif.data.sources import CBRT_CONSUMER_PRICES, SourceDefinition, sources_by_category
+from tif.data.text import preprocess_text_documents
 
 
 @dataclass(frozen=True)

@@ -10,15 +10,15 @@ from pathlib import Path
 
 import requests
 
-from turkish_inflation_forecasting.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
-from turkish_inflation_forecasting.data.fx import (
+from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+from tif.data.fx import (
     cbrt_fx_raw_path_for_date,
     cbrt_fx_url_for_date,
     iter_month_starts,
     month_end_candidates,
 )
-from turkish_inflation_forecasting.data.sources import SOURCE_REGISTRY, SourceDefinition, sources_by_category
-from turkish_inflation_forecasting.data.text import extract_cbrt_text_links
+from tif.data.sources import SOURCE_REGISTRY, SourceDefinition, sources_by_category
+from tif.data.text import extract_cbrt_text_links
 
 USER_AGENT = "turkish-inflation-forecasting/0.1 (+https://github.com/oguzhanozkaya/turkish-inflation-forecasting)"
 

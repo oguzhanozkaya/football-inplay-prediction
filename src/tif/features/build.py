@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from turkish_inflation_forecasting.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
 
 TOKEN_PATTERN = re.compile(r"\b\w+\b", re.UNICODE)
 PAD_TOKEN = "<pad>"

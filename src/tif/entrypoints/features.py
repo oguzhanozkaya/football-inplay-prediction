@@ -1,6 +1,6 @@
 """Feature generation stage entrypoint."""
 
-from turkish_inflation_forecasting.pipeline import run_features
+from tif.pipeline import run_features
 
 
 def main() -> int:

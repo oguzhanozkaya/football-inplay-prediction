@@ -39,6 +39,14 @@ def run_preprocess(paths: ProjectPaths = DEFAULT_PATHS) -> int:
     print(f"preprocess: wrote {result.cpi_target_rows} CPI target rows to {cpi_target_path}")
     print(
         "preprocess: wrote "
+        f"{result.numeric_series_rows} numeric source rows to {result.numeric_series_path.relative_to(paths.root)}"
+    )
+    print(
+        "preprocess: wrote "
+        f"{result.monthly_numeric_rows} monthly numeric rows to {result.monthly_numeric_path.relative_to(paths.root)}"
+    )
+    print(
+        "preprocess: wrote "
         f"{result.text_document_rows} text document rows to {result.text_documents_path.relative_to(paths.root)}"
     )
     return 0

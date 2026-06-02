@@ -33,7 +33,7 @@ The numeric pipeline should use reproducible source downloads instead of committ
 | Markets         | BIST index, bond yields, CDS if reproducibly available     | Financial conditions                    |
 | Expectations    | Inflation expectations if available from reproducible data | Forward-looking macro-financial context |
 
-The initial implemented numeric source is the CBRT Consumer Prices page, which lists TURKSTAT CPI year-to-year and month-to-month rates. The preprocessing stage builds the first CPI MoM target table from this official public page.
+The implemented numeric sources include the CBRT Consumer Prices page, the CBRT public indicative exchange-rate XML archive, and public FRED CSV series for Brent crude oil, Turkish industrial production growth, and Turkish unemployment. The preprocessing stage builds the CPI MoM target table, normalized long numeric observations, and a monthly numeric feature base from these public sources.
 
 ### Text Sources
 
@@ -79,13 +79,17 @@ Generated data and model outputs are reproducible artifacts. They should be gene
 
 Current data foundation artifacts:
 
-| Artifact                              | Command           | Purpose                                               |
-| ------------------------------------- | ----------------- | ----------------------------------------------------- |
-| `data/raw/source_registry.json`       | `just download`   | Snapshot of configured sources                        |
-| `data/raw/source_manifest.json`       | `just download`   | Download status, local paths, hashes, and byte counts |
-| `data/raw/text/documents/*.html`      | `just download`   | Official CBRT MPC document page snapshots             |
-| `data/interim/cpi_mom.parquet`        | `just preprocess` | Forecast-origin and target-month CPI MoM table        |
-| `data/interim/text_documents.parquet` | `just preprocess` | Official CBRT text metadata, dates, and body text     |
+| Artifact                               | Command           | Purpose                                               |
+| -------------------------------------- | ----------------- | ----------------------------------------------------- |
+| `data/raw/source_registry.json`        | `just download`   | Snapshot of configured sources                        |
+| `data/raw/source_manifest.json`        | `just download`   | Download status, local paths, hashes, and byte counts |
+| `data/raw/numeric/cbrt_fx_month_end/`  | `just download`   | Official CBRT month-end FX XML snapshots              |
+| `data/raw/numeric/fred/*.csv`          | `just download`   | Public FRED macro-financial CSV snapshots             |
+| `data/raw/text/documents/*.html`       | `just download`   | Official CBRT MPC document page snapshots             |
+| `data/interim/cpi_mom.parquet`         | `just preprocess` | Forecast-origin and target-month CPI MoM table        |
+| `data/interim/numeric_series.parquet`  | `just preprocess` | Normalized long numeric source observations           |
+| `data/interim/monthly_numeric.parquet` | `just preprocess` | Monthly numeric feature base                          |
+| `data/interim/text_documents.parquet`  | `just preprocess` | Official CBRT text metadata, dates, and body text     |
 
 ## Usage
 

@@ -11,6 +11,12 @@ from pathlib import Path
 import requests
 
 from turkish_inflation_forecasting.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+from turkish_inflation_forecasting.data.fx import (
+    cbrt_fx_raw_path_for_date,
+    cbrt_fx_url_for_date,
+    iter_month_starts,
+    month_end_candidates,
+)
 from turkish_inflation_forecasting.data.sources import SOURCE_REGISTRY, SourceDefinition, sources_by_category
 from turkish_inflation_forecasting.data.text import extract_cbrt_text_links
 
@@ -132,6 +138,48 @@ def download_source(
     )
 
 
+def download_cbrt_fx_month_end(
+    source: SourceDefinition,
+    paths: ProjectPaths = DEFAULT_PATHS,
+    timeout_seconds: int = 60,
+) -> list[DownloadRecord]:
+    """Download one official CBRT FX XML snapshot for each completed month."""
+
+    records = []
+    for month_start in iter_month_starts():
+        failed_candidates = []
+        for effective_date in month_end_candidates(month_start):
+            record = download_url(
+                source_id=f"{source.source_id}_{month_start:%Y_%m}",
+                title=f"{source.title} {month_start:%Y-%m}",
+                category=source.category,
+                source_type=source.source_type,
+                url=cbrt_fx_url_for_date(effective_date),
+                local_path=paths.raw_data / cbrt_fx_raw_path_for_date(source.raw_path, effective_date),
+                paths=paths,
+                timeout_seconds=timeout_seconds,
+            )
+            if record.status == "downloaded":
+                records.append(record)
+                break
+            failed_candidates.append(record)
+        else:
+            records.append(failed_candidates[-1])
+    return records
+
+
+def download_registered_source(
+    source: SourceDefinition,
+    paths: ProjectPaths = DEFAULT_PATHS,
+    timeout_seconds: int = 60,
+) -> list[DownloadRecord]:
+    """Download one registry source, including multi-file archive sources."""
+
+    if source.source_type == "official_xml_month_end_archive":
+        return download_cbrt_fx_month_end(source, paths, timeout_seconds)
+    return [download_source(source, paths, timeout_seconds)]
+
+
 def download_text_documents(paths: ProjectPaths = DEFAULT_PATHS, timeout_seconds: int = 60) -> list[DownloadRecord]:
     """Download official text document pages discovered from listing snapshots."""
 
@@ -166,9 +214,11 @@ def download_sources(
 
     ensure_generated_directories(paths)
     write_source_registry(paths)
-    records = [download_source(source, paths, timeout_seconds) for source in sources]
+    records = []
+    for source in sources:
+        records.extend(download_registered_source(source, paths, timeout_seconds))
     failed = [record for record in records if record.status != "downloaded"]
-    if not failed:
+    if not failed and any(source.category == "text" for source in sources):
         records.extend(download_text_documents(paths, timeout_seconds))
     write_manifest(records, paths)
     failed = [record for record in records if record.status != "downloaded"]

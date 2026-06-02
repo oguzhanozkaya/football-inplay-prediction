@@ -82,7 +82,11 @@ flowchart LR
     F --> G[Numeric Representation]
 ```
 
-The numeric branch models macro-financial time series. Candidate architectures are:
+The numeric branch models macro-financial time series.
+
+The current numeric foundation normalizes official CBRT CPI and FX data with public FRED macro-financial series before monthly alignment. Daily series such as Brent oil are aggregated to monthly average and month-end values. Monthly series are kept at their reported month and later feature generation must apply lag and cutoff rules before model training.
+
+Candidate architectures are:
 
 | Model               | Purpose                                      |
 | ------------------- | -------------------------------------------- |

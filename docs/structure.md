@@ -76,6 +76,8 @@ Current data modules:
 | `data/sources.py`    | Source registry for official numeric and text sources                                |
 | `data/download.py`   | Raw HTML downloads, document page downloads, registry snapshot, and manifest writing |
 | `data/cpi.py`        | CBRT Consumer Prices parsing and CPI MoM target construction                         |
+| `data/fx.py`         | CBRT exchange-rate XML archive date selection, URL construction, and parsing         |
+| `data/numeric.py`    | FRED CSV parsing, FX normalization, and monthly numeric aggregation                  |
 | `data/text.py`       | CBRT text listing metadata and document body extraction                              |
 | `data/preprocess.py` | Stage coordinator that writes initial interim tables                                 |
 
@@ -90,7 +92,7 @@ Current data modules:
 
 Full datasets should not be committed. The repository should commit the code and source definitions needed to reproduce them.
 
-The initial download stage writes `source_registry.json`, `source_manifest.json`, official CBRT CPI HTML, official CBRT MPC listing HTML, and official CBRT MPC document HTML pages under `data/raw/`. The initial preprocess stage writes `cpi_mom.parquet` and `text_documents.parquet` under `data/interim/`.
+The initial download stage writes `source_registry.json`, `source_manifest.json`, official CBRT CPI HTML, official CBRT FX XML snapshots, public FRED CSV snapshots, official CBRT MPC listing HTML, and official CBRT MPC document HTML pages under `data/raw/`. The initial preprocess stage writes `cpi_mom.parquet`, `numeric_series.parquet`, `monthly_numeric.parquet`, and `text_documents.parquet` under `data/interim/`.
 
 ## Output Directories
 

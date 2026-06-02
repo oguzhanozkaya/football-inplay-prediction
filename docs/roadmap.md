@@ -13,7 +13,7 @@ The repository is in the foundation stage. The project structure, reproducibilit
 | Documentation structure  | In progress                     |
 | Python package structure | Foundation implemented          |
 | Command workflow         | Foundation implemented          |
-| Data download pipeline   | Foundation implemented          |
+| Data download pipeline   | Macro foundation implemented    |
 | Text collection pipeline | Metadata foundation implemented |
 | Feature generation       | Planned                         |
 | Baselines                | Planned                         |
@@ -25,7 +25,6 @@ The repository is in the foundation stage. The project structure, reproducibilit
 
 | Priority | Task                                       | Exit Criteria                                                        |
 | -------- | ------------------------------------------ | -------------------------------------------------------------------- |
-| High     | Expand macro-financial source registry     | FX, policy rate, commodity, and market sources are downloadable      |
 | High     | Implement feature generation               | `just features` produces model-ready numeric and text feature tables |
 | High     | Build monthly text windows                 | Text documents are grouped by forecast-origin cutoff                 |
 | High     | Add leakage tests for feature availability | Cutoff rules are tested for numeric and text inputs                  |
@@ -100,16 +99,19 @@ The repository is in the foundation stage. The project structure, reproducibilit
 - `just` exposes pipeline, quality, test, and documentation commands.
 - Generated `data/` and `output/` directory placeholders are tracked while generated contents are ignored.
 - Initial smoke tests cover path setup and stage entrypoint behavior.
-- Source registry exists for official CBRT CPI and MPC text listing pages.
+- Source registry exists for official CBRT CPI, CBRT FX, public FRED macro-financial series, and MPC text listing pages.
 - `just download` writes raw official source snapshots, official CBRT MPC document pages, and a source manifest.
-- `just preprocess` writes `data/interim/cpi_mom.parquet` and `data/interim/text_documents.parquet`.
+- `just download` writes official CBRT month-end FX XML snapshots and public FRED macro-financial CSV snapshots.
+- `just preprocess` writes `data/interim/cpi_mom.parquet`, `data/interim/numeric_series.parquet`, `data/interim/monthly_numeric.parquet`, and `data/interim/text_documents.parquet`.
+- `data/interim/numeric_series.parquet` includes normalized FX, Brent oil, industrial production, and unemployment observations.
+- `data/interim/monthly_numeric.parquet` includes the first monthly numeric feature base with FX, Brent oil, industrial production, and unemployment columns.
 - `data/interim/text_documents.parquet` includes document metadata, publication dates, clean body text, and body length counts.
-- Tests cover CPI target alignment, source registry integrity, manifest writing, official text metadata extraction, and body extraction.
+- Tests cover CPI target alignment, source registry integrity, manifest writing, official text metadata extraction, body extraction, FX parsing, FRED CSV parsing, and monthly numeric aggregation.
 
 ## Limitations
 
 - `just features`, `train`, `evaluate`, and `plots` are still placeholders.
-- Macro-financial indicators beyond CPI are not implemented yet.
+- Macro-financial indicators beyond the initial FX, Brent oil, industrial production, and unemployment sources still need expansion.
 - Text sources are currently limited to official CBRT MPC decisions and summaries; broader news sources are not implemented yet.
 - Publication-delay handling beyond target-month alignment still needs implementation validation.
 

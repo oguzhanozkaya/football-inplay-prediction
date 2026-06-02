@@ -22,13 +22,13 @@ The repository is in the planning and scaffolding stage. The immediate goal is t
 
 ## Active Tasks
 
-| Priority | Task                                                           | Exit Criteria                                                                      |
-| -------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| High     | Finalize documentation and repository structure                | `docs/` explains scope, architecture, structure, development workflow, and roadmap |
+| Priority | Task                                                   | Exit Criteria                                                                      |
+| -------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| High     | Finalize documentation and repository structure        | `docs/` explains scope, architecture, structure, development workflow, and roadmap |
 | High     | Migrate Python package to `src/inflation_forecasting/` | Package imports work and CLI entry point is configured                             |
-| High     | Add reproducible project commands                              | `just --list` exposes pipeline, docs, quality, and test commands                   |
-| High     | Define source registry                                         | Numeric and text sources have documented download metadata                         |
-| High     | Build CPI target pipeline                                      | CPI MoM target is reproducibly generated without leakage                           |
+| High     | Add reproducible project commands                      | `just --list` exposes pipeline, docs, quality, and test commands                   |
+| High     | Define source registry                                 | Numeric and text sources have documented download metadata                         |
+| High     | Build CPI target pipeline                              | CPI MoM target is reproducibly generated without leakage                           |
 
 ## Milestones
 
@@ -37,7 +37,7 @@ The repository is in the planning and scaffolding stage. The immediate goal is t
 | Task                                           | Output                                                               |
 | ---------------------------------------------- | -------------------------------------------------------------------- |
 | Document architecture and repository structure | Updated `docs/` pages                                                |
-| Create package layout                          | `src/inflation_forecasting/`                                 |
+| Create package layout                          | `src/inflation_forecasting/`                                         |
 | Configure CLI skeleton                         | Stage-level commands callable through `uv run` and `just`            |
 | Add tests directory and fixtures policy        | Deterministic tests can be added without committing full datasets    |
 | Update ignore rules                            | Generated `data/` and `output/` artifacts stay out of source control |

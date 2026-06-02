@@ -5,15 +5,13 @@ hide:
   - toc
 ---
 
-<p align="center"> <img src="_assets/logo.svg" alt="Logo" width="120em" /> </p>
-
 # Inflation Forecasting {: align="center" }
 
 <div class="grid cards" markdown>
 
 -   ## Project
 
-    Forecast next-month CPI month-over-month inflation using macro-financial indicators, official economic texts, and deep learning models trained from scratch.
+    Forecasting Turkish inflation using deep learning.
 
     **Student**: Oğuzhan Özkaya
 
@@ -27,10 +25,6 @@ hide:
 
     The modeling pipeline will compare simple baselines, classical machine learning baselines, numeric deep learning models, text encoders trained from scratch, and a final fusion model that combines numeric and text representations.
 
-</div>
-
-<div class="grid cards" markdown>
-
 -   ## Objective
 
     Build a reproducible term project that can download data, construct a leakage-safe monthly dataset, train baseline and deep learning models, evaluate them chronologically, and generate article-ready outputs.
@@ -39,26 +33,4 @@ hide:
 
     Combine numeric time-series features with a text branch that learns inflation-pressure representations from central bank publications and economic news without external pretrained models.
 
--   ## Concepts
-
-    Time-series forecasting
-
-    NLP from scratch
-
-    CNNs, recurrent models
-
-    Transformer encoders
-
-    multimodal fusion
-
-    optimization
-
-    interpretability
-
-    reproducible deployment-oriented workflows.
-
 </div>
-
----
-
-## Article

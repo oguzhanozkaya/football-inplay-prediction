@@ -1,0 +1,429 @@
+"""Model training stage."""
+
+from __future__ import annotations
+
+import json
+import os
+import pickle
+import random
+import re
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import torch
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import StandardScaler
+from torch import nn
+from torch.utils.data import DataLoader, Dataset, Subset
+
+from turkish_inflation_forecasting.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+from turkish_inflation_forecasting.features.build import MAX_TEXT_TOKENS
+from turkish_inflation_forecasting.models.deep import FusionRegressor, NumericGRU, NumericMLP, TextCNNRegressor
+
+LAG_FEATURE_PATTERN = re.compile(r"(?P<base>.+)_lag_(?P<lag>\d+)$")
+SEQUENCE_STEPS = (12, 6, 3, 2, 1, 0)
+
+
+@dataclass(frozen=True)
+class TrainingConfig:
+    """Runtime training configuration."""
+
+    seed: int = 447
+    epochs: int = 80
+    patience: int = 12
+    batch_size: int = 32
+    learning_rate: float = 1e-3
+    random_forest_trees: int = 200
+    device: str = "auto"
+
+    @classmethod
+    def from_environment(cls) -> TrainingConfig:
+        return cls(
+            seed=int(os.environ.get("TIF_SEED", "447")),
+            epochs=int(os.environ.get("TIF_EPOCHS", "80")),
+            patience=int(os.environ.get("TIF_PATIENCE", "12")),
+            batch_size=int(os.environ.get("TIF_BATCH_SIZE", "32")),
+            learning_rate=float(os.environ.get("TIF_LEARNING_RATE", "0.001")),
+            random_forest_trees=int(os.environ.get("TIF_RANDOM_FOREST_TREES", "200")),
+            device=os.environ.get("TIF_DEVICE", "auto"),
+        )
+
+
+@dataclass(frozen=True)
+class TrainingResult:
+    """Summary of generated training artifacts."""
+
+    predictions_csv_path: Path
+    predictions_parquet_path: Path
+    summary_path: Path
+    model_count: int
+    prediction_rows: int
+
+
+class TrainingError(RuntimeError):
+    """Raised when processed features are missing or invalid."""
+
+
+class ForecastTensorDataset(Dataset):
+    """Tensor dataset shared by all PyTorch model variants."""
+
+    def __init__(
+        self,
+        numeric_features: np.ndarray,
+        numeric_sequence: np.ndarray,
+        token_ids: np.ndarray,
+        target: np.ndarray,
+    ) -> None:
+        self.numeric_features = torch.tensor(numeric_features, dtype=torch.float32)
+        self.numeric_sequence = torch.tensor(numeric_sequence, dtype=torch.float32)
+        self.token_ids = torch.tensor(token_ids, dtype=torch.long)
+        self.target = torch.tensor(target, dtype=torch.float32)
+
+    def __len__(self) -> int:
+        return len(self.target)
+
+    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+        return {
+            "numeric": self.numeric_features[index],
+            "sequence": self.numeric_sequence[index],
+            "tokens": self.token_ids[index],
+            "target": self.target[index],
+        }
+
+
+def _read_json(path: Path) -> dict[str, object]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def _resolve_device(config: TrainingConfig) -> torch.device:
+    if config.device == "cpu":
+        return torch.device("cpu")
+    if config.device == "cuda":
+        if not torch.cuda.is_available():
+            raise TrainingError("TIF_DEVICE=cuda was requested, but CUDA is not available")
+        return torch.device("cuda")
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _pad_token_sequences(sequences: pd.Series, max_length: int = MAX_TEXT_TOKENS) -> np.ndarray:
+    token_matrix = np.zeros((len(sequences), max_length), dtype=np.int64)
+    for row_index, sequence in enumerate(sequences):
+        values = list(sequence) if isinstance(sequence, (list, tuple, np.ndarray)) else []
+        bounded = values[:max_length]
+        if bounded:
+            token_matrix[row_index, : len(bounded)] = np.array(bounded, dtype=np.int64)
+    return token_matrix
+
+
+def _sequence_plan(numeric_feature_columns: list[str]) -> tuple[list[str], list[int]]:
+    bases = set()
+    available_lags: dict[str, set[int]] = {}
+    for column in numeric_feature_columns:
+        match = LAG_FEATURE_PATTERN.fullmatch(column)
+        if not match:
+            continue
+        base = match.group("base")
+        lag = int(match.group("lag"))
+        bases.add(base)
+        available_lags.setdefault(base, set()).add(lag)
+    variables = sorted(base for base in bases if len(available_lags.get(base, set())) >= 2)
+    return variables, list(SEQUENCE_STEPS)
+
+
+def _build_numeric_sequence(
+    scaled_numeric: pd.DataFrame, sequence_variables: list[str], sequence_steps: list[int]
+) -> np.ndarray:
+    sequence = np.zeros((len(scaled_numeric), len(sequence_steps), len(sequence_variables)), dtype=np.float32)
+    for step_index, lag in enumerate(sequence_steps):
+        for variable_index, variable in enumerate(sequence_variables):
+            column = f"{variable}_lag_{lag}"
+            if column in scaled_numeric.columns:
+                sequence[:, step_index, variable_index] = scaled_numeric[column].to_numpy(dtype=np.float32)
+    return sequence
+
+
+def _split_indices(dataset: pd.DataFrame, split_name: str) -> list[int]:
+    return dataset.index[dataset["split"] == split_name].tolist()
+
+
+def _model_output(model: nn.Module, batch: dict[str, torch.Tensor], input_kind: str) -> torch.Tensor:
+    if input_kind == "numeric":
+        return model(batch["numeric"])
+    if input_kind == "sequence":
+        return model(batch["sequence"])
+    if input_kind == "text":
+        return model(batch["tokens"])
+    if input_kind == "fusion":
+        return model(batch["numeric"], batch["tokens"])
+    raise ValueError(f"Unknown model input kind: {input_kind}")
+
+
+def _move_batch(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str, torch.Tensor]:
+    return {key: value.to(device) for key, value in batch.items()}
+
+
+def _train_torch_model(
+    model: nn.Module,
+    tensor_dataset: ForecastTensorDataset,
+    train_indices: list[int],
+    validation_indices: list[int],
+    input_kind: str,
+    config: TrainingConfig,
+    device: torch.device,
+) -> tuple[nn.Module, dict[str, object]]:
+    train_loader = DataLoader(Subset(tensor_dataset, train_indices), batch_size=config.batch_size, shuffle=True)
+    validation_loader = DataLoader(
+        Subset(tensor_dataset, validation_indices or train_indices), batch_size=config.batch_size, shuffle=False
+    )
+    model = model.to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    criterion = nn.MSELoss()
+    best_loss = float("inf")
+    best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+    stale_epochs = 0
+    history = []
+
+    for epoch in range(1, config.epochs + 1):
+        model.train()
+        train_losses = []
+        for batch in train_loader:
+            batch = _move_batch(batch, device)
+            optimizer.zero_grad(set_to_none=True)
+            loss = criterion(_model_output(model, batch, input_kind), batch["target"])
+            loss.backward()
+            optimizer.step()
+            train_losses.append(float(loss.detach().cpu()))
+
+        model.eval()
+        validation_losses = []
+        with torch.no_grad():
+            for batch in validation_loader:
+                batch = _move_batch(batch, device)
+                validation_losses.append(
+                    float(criterion(_model_output(model, batch, input_kind), batch["target"]).cpu())
+                )
+        validation_loss = float(np.mean(validation_losses))
+        history.append(
+            {
+                "epoch": epoch,
+                "train_loss": float(np.mean(train_losses)),
+                "validation_loss": validation_loss,
+            }
+        )
+        if validation_loss < best_loss - 1e-8:
+            best_loss = validation_loss
+            best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+            stale_epochs = 0
+        else:
+            stale_epochs += 1
+        if stale_epochs >= config.patience:
+            break
+
+    model.load_state_dict(best_state)
+    return model.to("cpu"), {"best_validation_loss": best_loss, "epochs_ran": len(history), "history": history}
+
+
+def _predict_torch_model(
+    model: nn.Module,
+    tensor_dataset: ForecastTensorDataset,
+    input_kind: str,
+    batch_size: int,
+) -> np.ndarray:
+    loader = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=False)
+    predictions = []
+    model.eval()
+    with torch.no_grad():
+        for batch in loader:
+            predictions.append(_model_output(model, batch, input_kind).cpu().numpy())
+    return np.concatenate(predictions)
+
+
+def _prediction_frame(dataset: pd.DataFrame, model_name: str, model_type: str, predictions: np.ndarray) -> pd.DataFrame:
+    frame = dataset[
+        [
+            "forecast_origin_month_start",
+            "forecast_origin_month",
+            "target_month_start",
+            "target_month",
+            "split",
+            "target_cpi_mom_percent",
+            "cpi_mom_lag_1",
+        ]
+    ].copy()
+    frame = frame.rename(
+        columns={
+            "target_cpi_mom_percent": "actual_cpi_mom_percent",
+            "cpi_mom_lag_1": "previous_cpi_mom_percent",
+        }
+    )
+    frame["model_name"] = model_name
+    frame["model_type"] = model_type
+    frame["prediction_cpi_mom_percent"] = predictions.astype(float)
+    return frame
+
+
+def _write_training_markdown(path: Path, summary: dict[str, object]) -> None:
+    lines = ["# Training Summary", "", f"Device: `{summary['device']}`", ""]
+    lines.append("| Model | Type | Status | Detail |")
+    lines.append("| ----- | ---- | ------ | ------ |")
+    for model_name, model_summary in summary["models"].items():
+        detail = model_summary.get("detail", "")
+        lines.append(f"| `{model_name}` | {model_summary['type']} | {model_summary['status']} | {detail} |")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def train_models(paths: ProjectPaths = DEFAULT_PATHS, config: TrainingConfig | None = None) -> TrainingResult:
+    """Train baselines, classical models, and raw PyTorch models."""
+
+    ensure_generated_directories(paths)
+    config = TrainingConfig.from_environment() if config is None else config
+    _set_seed(config.seed)
+    dataset_path = paths.processed_data / "model_dataset.parquet"
+    metadata_path = paths.processed_data / "feature_metadata.json"
+    vocabulary_path = paths.processed_data / "text_vocabulary.json"
+    missing = [path for path in (dataset_path, metadata_path, vocabulary_path) if not path.is_file()]
+    if missing:
+        missing_paths = ", ".join(path.relative_to(paths.root).as_posix() for path in missing)
+        raise TrainingError(f"Missing processed artifacts: {missing_paths}. Run `just features` first.")
+
+    dataset = pd.read_parquet(dataset_path).sort_values("forecast_origin_month_start").reset_index(drop=True)
+    metadata = _read_json(metadata_path)
+    vocabulary = _read_json(vocabulary_path)
+    numeric_feature_columns = list(metadata["numeric_feature_columns"])
+    target = dataset["target_cpi_mom_percent"].to_numpy(dtype=np.float32)
+    train_indices = _split_indices(dataset, "train")
+    validation_indices = _split_indices(dataset, "validation")
+    if not train_indices:
+        raise TrainingError("Processed dataset does not contain training rows")
+
+    scaler = StandardScaler()
+    scaler.fit(dataset.loc[train_indices, numeric_feature_columns])
+    numeric_scaled = scaler.transform(dataset[numeric_feature_columns]).astype(np.float32)
+    scaled_numeric_frame = pd.DataFrame(numeric_scaled, columns=numeric_feature_columns)
+    sequence_variables, sequence_steps = _sequence_plan(numeric_feature_columns)
+    numeric_sequence = _build_numeric_sequence(scaled_numeric_frame, sequence_variables, sequence_steps)
+    token_ids = _pad_token_sequences(dataset["text_token_ids"], int(metadata["max_text_tokens"]))
+    tensor_dataset = ForecastTensorDataset(numeric_scaled, numeric_sequence, token_ids, target)
+
+    predictions = [
+        _prediction_frame(dataset, "last_value", "baseline", dataset["cpi_mom_lag_1"].to_numpy(dtype=float)),
+        _prediction_frame(
+            dataset,
+            "rolling_mean_3",
+            "baseline",
+            dataset["cpi_mom_rolling_mean_3"].to_numpy(dtype=float),
+        ),
+    ]
+    model_summary: dict[str, dict[str, object]] = {
+        "last_value": {"type": "baseline", "status": "trained", "detail": "uses cpi_mom_lag_1"},
+        "rolling_mean_3": {
+            "type": "baseline",
+            "status": "trained",
+            "detail": "uses cpi_mom_rolling_mean_3",
+        },
+    }
+
+    ridge = Ridge(alpha=1.0)
+    ridge.fit(numeric_scaled[train_indices], target[train_indices])
+    predictions.append(_prediction_frame(dataset, "ridge", "classical", ridge.predict(numeric_scaled)))
+    model_summary["ridge"] = {"type": "classical", "status": "trained", "detail": "numeric features"}
+
+    forest = RandomForestRegressor(
+        n_estimators=config.random_forest_trees,
+        random_state=config.seed,
+        min_samples_leaf=3,
+        n_jobs=-1,
+    )
+    forest.fit(numeric_scaled[train_indices], target[train_indices])
+    predictions.append(_prediction_frame(dataset, "random_forest", "classical", forest.predict(numeric_scaled)))
+    model_summary["random_forest"] = {
+        "type": "classical",
+        "status": "trained",
+        "detail": f"{config.random_forest_trees} trees",
+    }
+
+    device = _resolve_device(config)
+    torch_models: list[tuple[str, str, nn.Module, str]] = [
+        ("numeric_mlp", "deep_numeric", NumericMLP(len(numeric_feature_columns)), "numeric"),
+        ("numeric_gru", "deep_numeric", NumericGRU(len(sequence_variables)), "sequence"),
+        ("text_cnn", "deep_text", TextCNNRegressor(len(vocabulary)), "text"),
+        ("fusion_mlp", "deep_fusion", FusionRegressor(len(numeric_feature_columns), len(vocabulary)), "fusion"),
+    ]
+    for model_name, model_type, model, input_kind in torch_models:
+        trained_model, history = _train_torch_model(
+            model, tensor_dataset, train_indices, validation_indices, input_kind, config, device
+        )
+        predictions.append(
+            _prediction_frame(
+                dataset,
+                model_name,
+                model_type,
+                _predict_torch_model(trained_model, tensor_dataset, input_kind, config.batch_size),
+            )
+        )
+        torch.save(
+            {
+                "state_dict": trained_model.state_dict(),
+                "input_kind": input_kind,
+                "metadata": {
+                    "numeric_feature_columns": numeric_feature_columns,
+                    "sequence_variables": sequence_variables,
+                    "sequence_steps": sequence_steps,
+                    "vocabulary_size": len(vocabulary),
+                },
+            },
+            paths.models / f"{model_name}.pt",
+        )
+        model_summary[model_name] = {
+            "type": model_type,
+            "status": "trained",
+            "detail": f"{history['epochs_ran']} epochs, best validation loss {history['best_validation_loss']:.4f}",
+            "history": history,
+        }
+
+    with (paths.models / "classical_models.pkl").open("wb") as output:
+        pickle.dump({"scaler": scaler, "ridge": ridge, "random_forest": forest}, output)
+
+    predictions_frame = pd.concat(predictions, ignore_index=True)
+    predictions_csv_path = paths.predictions / "predictions.csv"
+    predictions_parquet_path = paths.predictions / "predictions.parquet"
+    predictions_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    predictions_frame.to_csv(predictions_csv_path, index=False)
+    predictions_frame.to_parquet(predictions_parquet_path, index=False)
+
+    summary = {
+        "config": asdict(config),
+        "device": str(device),
+        "row_count": len(dataset),
+        "numeric_feature_count": len(numeric_feature_columns),
+        "vocabulary_size": len(vocabulary),
+        "sequence_variables": sequence_variables,
+        "sequence_steps": sequence_steps,
+        "models": model_summary,
+    }
+    summary_path = paths.models / "training_summary.json"
+    _write_json(summary_path, summary)
+    _write_training_markdown(paths.reports / "training_summary.md", summary)
+    return TrainingResult(
+        predictions_csv_path=predictions_csv_path,
+        predictions_parquet_path=predictions_parquet_path,
+        summary_path=summary_path,
+        model_count=len(model_summary),
+        prediction_rows=len(predictions_frame),
+    )

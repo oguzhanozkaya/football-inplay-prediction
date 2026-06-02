@@ -90,6 +90,13 @@ Current data foundation artifacts:
 | `data/interim/numeric_series.parquet`  | `just preprocess` | Normalized long numeric source observations           |
 | `data/interim/monthly_numeric.parquet` | `just preprocess` | Monthly numeric feature base                          |
 | `data/interim/text_documents.parquet`  | `just preprocess` | Official CBRT text metadata, dates, and body text     |
+| `data/processed/model_dataset.parquet` | `just features`   | Leakage-safe monthly modeling table                   |
+| `data/processed/feature_metadata.json` | `just features`   | Feature columns, split metadata, and tokenizer config |
+| `data/processed/text_vocabulary.json`  | `just features`   | Train-split vocabulary built from project text        |
+| `output/models/*.pt`                   | `just train`      | Raw PyTorch model checkpoints                         |
+| `output/predictions/predictions.*`     | `just train`      | Forecasts for all models and chronological splits     |
+| `output/reports/metrics.*`             | `just evaluate`   | MAE, RMSE, direction accuracy, and baseline deltas    |
+| `output/figures/*.png`                 | `just plots`      | CPI, prediction, residual, and comparison figures     |
 
 ## Usage
 
@@ -123,7 +130,7 @@ uv sync
 
 ### Run
 
-The final pipeline should be runnable from a single command:
+The complete pipeline is runnable from a single command:
 
 ```bash
 just run
@@ -140,7 +147,13 @@ just evaluate
 just plots
 ```
 
-The current foundation registers these commands as separate console entrypoints. The real data and modeling logic should replace the placeholder stage behavior as implementation progresses.
+Training runtime can be controlled through environment variables without changing the command interface:
+
+```bash
+TIF_EPOCHS=200 TIF_PATIENCE=20 just train
+```
+
+Useful variables are `TIF_EPOCHS`, `TIF_PATIENCE`, `TIF_BATCH_SIZE`, `TIF_LEARNING_RATE`, `TIF_RANDOM_FOREST_TREES`, `TIF_SEED`, and `TIF_DEVICE`.
 
 ## Success Criteria
 

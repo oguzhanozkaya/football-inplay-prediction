@@ -86,14 +86,25 @@ The numeric branch models macro-financial time series.
 
 The current numeric foundation normalizes official CBRT CPI and FX data with public FRED macro-financial series before monthly alignment. Daily series such as Brent oil are aggregated to monthly average and month-end values. Monthly series are kept at their reported month and later feature generation must apply lag and cutoff rules before model training.
 
+Feature generation uses conservative availability rules:
+
+| Feature Group      | Availability Rule                                                     |
+| ------------------ | --------------------------------------------------------------------- |
+| CPI history        | CPI MoM and YoY are used from month `t - 1` and earlier               |
+| Market data        | FX and Brent features can use month `t` values at the forecast cutoff |
+| Delayed macro data | Industrial production and unemployment use month `t - 2` and earlier  |
+| Text documents     | Documents are included only when published by the end of month `t`    |
+
 Candidate architectures are:
 
-| Model               | Purpose                                      |
-| ------------------- | -------------------------------------------- |
-| MLP                 | Tabular deep learning baseline               |
-| 1D CNN              | Local temporal pattern extraction            |
-| GRU or LSTM         | Sequential memory across monthly windows     |
-| Transformer encoder | Attention-based sequence modeling experiment |
+| Model               | Purpose                                            |
+| ------------------- | -------------------------------------------------- |
+| MLP                 | Tabular deep learning baseline                     |
+| 1D CNN              | Local temporal pattern extraction                  |
+| MLP                 | Implemented tabular numeric deep learning baseline |
+| GRU                 | Implemented lag-structured numeric sequence model  |
+| 1D CNN              | Candidate future numeric sequence model            |
+| Transformer encoder | Candidate future attention-based experiment        |
 
 ### Text Branch
 
@@ -111,11 +122,11 @@ The text branch learns whether text indicates upward or downward inflation press
 
 Valid text architectures for this project are:
 
-| Model               | Purpose                                 |
-| ------------------- | --------------------------------------- |
-| TextCNN             | Local phrase and n-gram pattern capture |
-| BiGRU or BiLSTM     | Sequential text representation          |
-| Transformer encoder | Attention-based text representation     |
+| Model               | Purpose                                             |
+| ------------------- | --------------------------------------------------- |
+| TextCNN             | Implemented local phrase and n-gram pattern capture |
+| BiGRU or BiLSTM     | Candidate sequential text representation            |
+| Transformer encoder | Candidate attention-based text representation       |
 
 ### Fusion Model
 
@@ -128,6 +139,8 @@ flowchart LR
 ```
 
 The fusion model combines numeric and text representations and predicts the CPI MoM value for the next month.
+
+The implemented fusion model concatenates an MLP numeric representation with a TextCNN representation and feeds the result through a small regression head.
 
 ### Baselines
 

@@ -14,6 +14,8 @@ description: Conventions, rules and policies for project development.
 - **Python**: Project-pinned version from `pyproject.toml`
 - **PyTorch**: Raw PyTorch for deep learning models
 - **scikit-learn**: Classical baselines and preprocessing utilities where useful
+- **matplotlib**: Static report figures
+- **numpy/pandas**: Numeric arrays and tabular pipeline artifacts
 
 #### Code Style
 
@@ -54,6 +56,10 @@ Pipeline commands:
 - `just train` trains baselines and deep learning models.
 - `just evaluate` computes validation and test metrics.
 - `just plots` generates report and article figures.
+
+`just run` executes the full pipeline in stage order: download, preprocess, features, train, evaluate, and plots.
+
+Training defaults are intentionally moderate. Use environment variables for longer runs, for example `TIF_EPOCHS=200 TIF_PATIENCE=20 just train`.
 
 ### Quality and Verification Commands
 

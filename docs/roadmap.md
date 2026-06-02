@@ -6,7 +6,7 @@ description: Tasks, priorities, known bugs, and the project roadmap.
 
 ## Status Overview
 
-The repository is in the foundation stage. The project structure, reproducibility contract, command workflow, and implementation milestones are documented. The next goal is to replace the stage entrypoint placeholders with real data and modeling logic.
+The repository now contains the full command pipeline. The remaining project work is to run a longer training job, review the generated metrics and figures, and replace result placeholders in the article.
 
 | Area                     | Status                          |
 | ------------------------ | ------------------------------- |
@@ -15,19 +15,19 @@ The repository is in the foundation stage. The project structure, reproducibilit
 | Command workflow         | Foundation implemented          |
 | Data download pipeline   | Macro foundation implemented    |
 | Text collection pipeline | Metadata foundation implemented |
-| Feature generation       | Planned                         |
-| Baselines                | Planned                         |
-| Deep learning models     | Planned                         |
-| Evaluation reports       | Planned                         |
-| Article draft            | Planned                         |
+| Feature generation       | Implemented                     |
+| Baselines                | Implemented                     |
+| Deep learning models     | Implemented                     |
+| Evaluation reports       | Implemented                     |
+| Article draft            | Template implemented            |
 
 ## Active Tasks
 
-| Priority | Task                                       | Exit Criteria                                                        |
-| -------- | ------------------------------------------ | -------------------------------------------------------------------- |
-| High     | Implement feature generation               | `just features` produces model-ready numeric and text feature tables |
-| High     | Build monthly text windows                 | Text documents are grouped by forecast-origin cutoff                 |
-| High     | Add leakage tests for feature availability | Cutoff rules are tested for numeric and text inputs                  |
+| Priority | Task                             | Exit Criteria                                                    |
+| -------- | -------------------------------- | ---------------------------------------------------------------- |
+| High     | Run extended training            | `TIF_EPOCHS=200 TIF_PATIENCE=20 just train` completes            |
+| High     | Regenerate reports and figures   | `just evaluate` and `just plots` reflect final trained models    |
+| High     | Fill article result placeholders | Final MAE, figures, and interpretation are added to `article.md` |
 
 ## Milestones
 
@@ -106,14 +106,17 @@ The repository is in the foundation stage. The project structure, reproducibilit
 - `data/interim/numeric_series.parquet` includes normalized FX, Brent oil, industrial production, and unemployment observations.
 - `data/interim/monthly_numeric.parquet` includes the first monthly numeric feature base with FX, Brent oil, industrial production, and unemployment columns.
 - `data/interim/text_documents.parquet` includes document metadata, publication dates, clean body text, and body length counts.
-- Tests cover CPI target alignment, source registry integrity, manifest writing, official text metadata extraction, body extraction, FX parsing, FRED CSV parsing, and monthly numeric aggregation.
+- `just features` writes a leakage-safe processed dataset, chronological splits, tokenizer vocabulary, and feature metadata.
+- `just train` trains last-value and rolling baselines, Ridge, Random Forest, numeric MLP, numeric GRU, TextCNN, and fusion models.
+- `just evaluate` writes JSON and Markdown metrics.
+- `just plots` writes CPI history, feature coverage, prediction, residual, and model-comparison figures.
+- Tests cover CPI target alignment, source registry integrity, manifest writing, official text metadata extraction, body extraction, FX parsing, FRED CSV parsing, monthly numeric aggregation, chronological feature construction, and evaluation metrics.
 
 ## Limitations
 
-- `just features`, `train`, `evaluate`, and `plots` are still placeholders.
 - Macro-financial indicators beyond the initial FX, Brent oil, industrial production, and unemployment sources still need expansion.
 - Text sources are currently limited to official CBRT MPC decisions and summaries; broader news sources are not implemented yet.
-- Publication-delay handling beyond target-month alignment still needs implementation validation.
+- Final reported results depend on the extended training run selected for the final article.
 
 ## Future Work
 

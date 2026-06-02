@@ -81,6 +81,16 @@ Current data modules:
 | `data/text.py`       | CBRT text listing metadata and document body extraction                              |
 | `data/preprocess.py` | Stage coordinator that writes initial interim tables                                 |
 
+Current modeling modules:
+
+| Path                     | Responsibility                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| `features/build.py`      | Leakage-safe lag, rolling, text-window, tokenizer, and split feature generation     |
+| `models/deep.py`         | Raw PyTorch numeric MLP, numeric GRU, TextCNN, and fusion model definitions         |
+| `training/train.py`      | Baselines, classical models, PyTorch training loops, checkpoints, and predictions   |
+| `evaluation/metrics.py`  | MAE, RMSE, direction accuracy, and baseline delta reports                           |
+| `visualization/plots.py` | Static report figures for CPI history, predictions, residuals, and model comparison |
+
 ## Data Directories
 
 | Path              | Purpose                                              | Git Policy |
@@ -92,13 +102,13 @@ Current data modules:
 
 Full datasets should not be committed. The repository should commit the code and source definitions needed to reproduce them.
 
-The initial download stage writes `source_registry.json`, `source_manifest.json`, official CBRT CPI HTML, official CBRT FX XML snapshots, public FRED CSV snapshots, official CBRT MPC listing HTML, and official CBRT MPC document HTML pages under `data/raw/`. The initial preprocess stage writes `cpi_mom.parquet`, `numeric_series.parquet`, `monthly_numeric.parquet`, and `text_documents.parquet` under `data/interim/`.
+The download stage writes `source_registry.json`, `source_manifest.json`, official CBRT CPI HTML, official CBRT FX XML snapshots, public FRED CSV snapshots, official CBRT MPC listing HTML, and official CBRT MPC document HTML pages under `data/raw/`. The preprocess stage writes `cpi_mom.parquet`, `numeric_series.parquet`, `monthly_numeric.parquet`, and `text_documents.parquet` under `data/interim/`. The features stage writes `model_dataset.parquet`, `feature_metadata.json`, `text_vocabulary.json`, and `split_summary.json` under `data/processed/`.
 
 ## Output Directories
 
 | Path                  | Purpose                                             | Git Policy         |
 | --------------------- | --------------------------------------------------- | ------------------ |
-| `output/models/`      | Trained PyTorch checkpoints                         | ignored            |
+| `output/models/`      | Trained PyTorch checkpoints and model summaries     | ignored            |
 | `output/predictions/` | Forecast CSV and Parquet outputs                    | ignored            |
 | `output/reports/`     | Metrics, comparison tables, and generated summaries | ignored            |
 | `output/figures/`     | Generated plots for reports and article drafts      | ignored by default |

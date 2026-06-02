@@ -22,12 +22,26 @@ def test_download_stage_reports_success(tmp_path: Path, capsys, monkeypatch) -> 
     assert "downloaded 1 raw sources" in captured.out
 
 
-def test_run_entrypoint_reports_registered_pipeline(tmp_path: Path, capsys) -> None:
+def test_run_entrypoint_runs_registered_pipeline(tmp_path: Path, capsys, monkeypatch) -> None:
     paths = build_paths(tmp_path)
+    calls = []
+
+    def fake_stage(_) -> int:
+        calls.append("stage")
+        paths.reports.mkdir(parents=True, exist_ok=True)
+        return 0
+
+    monkeypatch.setattr("turkish_inflation_forecasting.pipeline.run_download", fake_stage)
+    monkeypatch.setattr("turkish_inflation_forecasting.pipeline.run_preprocess", fake_stage)
+    monkeypatch.setattr("turkish_inflation_forecasting.pipeline.run_features", fake_stage)
+    monkeypatch.setattr("turkish_inflation_forecasting.pipeline.run_train", fake_stage)
+    monkeypatch.setattr("turkish_inflation_forecasting.pipeline.run_evaluate", fake_stage)
+    monkeypatch.setattr("turkish_inflation_forecasting.pipeline.run_plots", fake_stage)
 
     exit_code = run_pipeline(paths)
 
     captured = capsys.readouterr()
     assert exit_code == 0
+    assert len(calls) == 6
     assert paths.reports.is_dir()
-    assert "full forecasting pipeline" in captured.out
+    assert "full forecasting pipeline completed" in captured.out

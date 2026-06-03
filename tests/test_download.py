@@ -1,19 +1,13 @@
 from pathlib import Path
 
-from turkish_inflation_forecasting.config import build_paths
-from turkish_inflation_forecasting.data.download import (
-    DownloadRecord,
-    download_text_documents,
-    write_manifest,
-    write_source_registry,
-)
-from turkish_inflation_forecasting.data.sources import sources_by_category
+import tif.download
+import tif.utils
 
 
 def test_write_source_registry_records_raw_paths(tmp_path: Path) -> None:
-    paths = build_paths(tmp_path)
+    paths = tif.utils.build_paths(tmp_path)
 
-    registry_path = write_source_registry(paths)
+    registry_path = tif.download.write_source_registry(paths)
 
     content = registry_path.read_text(encoding="utf-8")
     assert "cbrt_consumer_prices" in content
@@ -21,9 +15,9 @@ def test_write_source_registry_records_raw_paths(tmp_path: Path) -> None:
 
 
 def test_write_manifest_records_download_status(tmp_path: Path) -> None:
-    paths = build_paths(tmp_path)
+    paths = tif.utils.build_paths(tmp_path)
     paths.raw_data.mkdir(parents=True)
-    record = DownloadRecord(
+    record = tif.download.DownloadRecord(
         source_id="source",
         title="Source",
         category="numeric",
@@ -36,15 +30,15 @@ def test_write_manifest_records_download_status(tmp_path: Path) -> None:
         bytes=3,
     )
 
-    manifest_path = write_manifest([record], paths)
+    manifest_path = tif.download.write_manifest([record], paths)
 
     assert '"status": "downloaded"' in manifest_path.read_text(encoding="utf-8")
 
 
 def test_download_text_documents_writes_document_pages(tmp_path: Path, monkeypatch) -> None:
-    paths = build_paths(tmp_path)
+    paths = tif.utils.build_paths(tmp_path)
     paths.raw_data.mkdir(parents=True)
-    for source in sources_by_category("text"):
+    for source in tif.utils.sources_by_category("text"):
         raw_path = paths.raw_data / source.raw_path
         raw_path.parent.mkdir(parents=True, exist_ok=True)
         source_url_path = source.url.split("/MPC/")[-1].replace("%2B", "+")
@@ -59,9 +53,9 @@ def test_download_text_documents_writes_document_pages(tmp_path: Path, monkeypat
         def raise_for_status(self) -> None:
             return None
 
-    monkeypatch.setattr("turkish_inflation_forecasting.data.download.requests.get", lambda *_, **__: Response())
+    monkeypatch.setattr("tif.download.requests.get", lambda *_, **__: Response())
 
-    records = download_text_documents(paths)
+    records = tif.download.download_text_documents(paths)
 
     assert len(records) == 2
     assert all(record.source_type == "official_html_document" for record in records)

@@ -21,7 +21,7 @@ description: Conventions, rules and policies for project development.
 
 - Quote style: double
 - Indent style: space
-- Importable code lives under `src/turkish_inflation_forecasting/`.
+- Importable code lives under `src/tif/`.
 - Generated data, reports, figures, and checkpoints are not source code.
 
 ### Modeling Rules
@@ -84,6 +84,8 @@ Tests should focus on deterministic project logic rather than model quality.
 | Entrypoints          | Smoke tests for stage-specific console entrypoints where feasible              |
 
 Training quality should be verified with reports and metrics, not unit tests.
+
+Each source file under `src/tif/` should have one corresponding test file under `tests/`. Shared helpers belong in `tif.utils`; stage modules should use module imports such as `import tif.utils` and access shared values as `tif.utils.MAX_TOKENS`.
 
 ## Reproducibility
 

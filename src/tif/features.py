@@ -7,6 +7,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -64,7 +65,7 @@ def build_vocabulary(texts: pd.Series, max_size: int = MAX_VOCAB_SIZE, min_frequ
     return vocabulary
 
 
-def encode_text(text: str, vocabulary: dict[str, int], max_tokens: int = MAX_TEXT_TOKENS) -> list[int]:
+def encode_text(text: str, vocabulary: dict[str, int], max_tokens: int = tif.utils.MAX_TOKENS) -> list[int]:
     """Convert text to a bounded sequence of token ids."""
 
     tokens = tokenize(text)
@@ -262,7 +263,7 @@ def build_model_dataset(
         "numeric_feature_columns": numeric_feature_columns,
         "text_token_column": "text_token_ids",
         "text_window_column": "text_window",
-        "max_text_tokens": MAX_TEXT_TOKENS,
+        "max_text_tokens": tif.utils.MAX_TOKENS,
         "text_lookback_months": TEXT_LOOKBACK_MONTHS,
         "market_columns": market_columns,
         "delayed_macro_columns": delayed_macro_columns,
@@ -277,10 +278,10 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def generate_features(paths: ProjectPaths = DEFAULT_PATHS) -> FeatureGenerationResult:
+def generate_features(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS) -> FeatureGenerationResult:
     """Read interim tables and write model-ready processed feature artifacts."""
 
-    ensure_generated_directories(paths)
+    tif.utils.ensure_generated_directories(paths)
     cpi_path = paths.interim_data / "cpi_mom.parquet"
     monthly_numeric_path = paths.interim_data / "monthly_numeric.parquet"
     text_documents_path = paths.interim_data / "text_documents.parquet"
@@ -317,17 +318,17 @@ def generate_features(paths: ProjectPaths = DEFAULT_PATHS) -> FeatureGenerationR
 
 def main() -> int:
     try:
-        result = generate_features(DEFAULT_PATHS)
+        result = generate_features(tif.utils.DEFAULT_PATHS)
     except (FeatureGenerationError, ValueError, FileNotFoundError) as exc:
         print(f"features: {exc}")
         return 1
     print(
         "features: wrote "
         f"{result.row_count} model rows with {result.numeric_feature_count} numeric features to "
-        f"{result.dataset_path.relative_to(DEFAULT_PATHS.root)}"
+        f"{result.dataset_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
     print(
         "features: wrote vocabulary with "
-        f"{result.vocabulary_size} tokens to {result.vocabulary_path.relative_to(DEFAULT_PATHS.root)}"
+        f"{result.vocabulary_size} tokens to {result.vocabulary_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
     return 0

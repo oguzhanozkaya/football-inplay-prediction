@@ -7,6 +7,7 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
 import requests
 
 import tif.utils
@@ -39,20 +40,22 @@ def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def source_registry_records(sources: tuple[utils.SourceDefinition, ...] = utils.SOURCE_REGISTRY) -> list[dict[str, str]]:
+def source_registry_records(
+    sources: tuple[tif.utils.SourceDefinition, ...] = tif.utils.SOURCE_REGISTRY,
+) -> list[dict[str, str]]:
     return [asdict(source) | {"raw_path": source.raw_path.as_posix()} for source in sources]
 
 
-def write_source_registry(paths: ProjectPaths = DEFAULT_PATHS) -> Path:
+def write_source_registry(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS) -> Path:
     """Write the source registry snapshot used by the current download run."""
 
-    ensure_generated_directories(paths)
+    tif.utils.ensure_generated_directories(paths)
     registry_path = paths.raw_data / "source_registry.json"
     registry_path.write_text(json.dumps(source_registry_records(), indent=2), encoding="utf-8")
     return registry_path
 
 
-def write_manifest(records: list[DownloadRecord], paths: ProjectPaths = DEFAULT_PATHS) -> Path:
+def write_manifest(records: list[DownloadRecord], paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS) -> Path:
     """Write raw download manifest records."""
 
     manifest_path = paths.raw_data / "source_manifest.json"
@@ -69,7 +72,7 @@ def download_url(
     source_type: str,
     url: str,
     local_path: Path,
-    paths: ProjectPaths,
+    paths: tif.utils.ProjectPaths,
     timeout_seconds: int,
 ) -> DownloadRecord:
     """Download one URL into a local raw path and return a manifest record."""
@@ -113,7 +116,9 @@ def download_url(
 
 
 def download_source(
-    source: SourceDefinition, paths: ProjectPaths = DEFAULT_PATHS, timeout_seconds: int = 60
+    source: tif.utils.SourceDefinition,
+    paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS,
+    timeout_seconds: int = 60,
 ) -> DownloadRecord:
     """Download one registered source into its registered raw path."""
 
@@ -130,23 +135,23 @@ def download_source(
 
 
 def download_cbrt_fx_month_end(
-    source: SourceDefinition,
-    paths: ProjectPaths = DEFAULT_PATHS,
+    source: tif.utils.SourceDefinition,
+    paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS,
     timeout_seconds: int = 60,
 ) -> list[DownloadRecord]:
     """Download one official CBRT FX XML snapshot for each completed month."""
 
     records = []
-    for month_start in iter_month_starts():
+    for month_start in tif.utils.iter_month_starts():
         failed_candidates = []
-        for effective_date in month_end_candidates(month_start):
+        for effective_date in tif.utils.month_end_candidates(month_start):
             record = download_url(
                 source_id=f"{source.source_id}_{month_start:%Y_%m}",
                 title=f"{source.title} {month_start:%Y-%m}",
                 category=source.category,
                 source_type=source.source_type,
-                url=cbrt_fx_url_for_date(effective_date),
-                local_path=paths.raw_data / cbrt_fx_raw_path_for_date(source.raw_path, effective_date),
+                url=tif.utils.cbrt_fx_url_for_date(effective_date),
+                local_path=paths.raw_data / tif.utils.cbrt_fx_raw_path_for_date(source.raw_path, effective_date),
                 paths=paths,
                 timeout_seconds=timeout_seconds,
             )
@@ -160,8 +165,8 @@ def download_cbrt_fx_month_end(
 
 
 def download_registered_source(
-    source: SourceDefinition,
-    paths: ProjectPaths = DEFAULT_PATHS,
+    source: tif.utils.SourceDefinition,
+    paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS,
     timeout_seconds: int = 60,
 ) -> list[DownloadRecord]:
     """Download one registry source, including multi-file archive sources."""
@@ -171,15 +176,18 @@ def download_registered_source(
     return [download_source(source, paths, timeout_seconds)]
 
 
-def download_text_documents(paths: ProjectPaths = DEFAULT_PATHS, timeout_seconds: int = 60) -> list[DownloadRecord]:
+def download_text_documents(
+    paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS,
+    timeout_seconds: int = 60,
+) -> list[DownloadRecord]:
     """Download official text document pages discovered from listing snapshots."""
 
     records = []
-    for source in sources_by_category("text"):
+    for source in tif.utils.sources_by_category("text"):
         listing_path = paths.raw_data / source.raw_path
         if not listing_path.is_file():
             raise DownloadError(f"Missing text listing source before document download: {listing_path}")
-        documents = extract_cbrt_text_links(listing_path.read_text(encoding="utf-8"), source)
+        documents = tif.utils.extract_cbrt_text_links(listing_path.read_text(encoding="utf-8"), source)
         for document in documents.itertuples(index=False):
             records.append(
                 download_url(
@@ -197,13 +205,13 @@ def download_text_documents(paths: ProjectPaths = DEFAULT_PATHS, timeout_seconds
 
 
 def download_sources(
-    paths: ProjectPaths = DEFAULT_PATHS,
-    sources: tuple[SourceDefinition, ...] = SOURCE_REGISTRY,
+    paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS,
+    sources: tuple[tif.utils.SourceDefinition, ...] = tif.utils.SOURCE_REGISTRY,
     timeout_seconds: int = 60,
 ) -> list[DownloadRecord]:
     """Download all registered raw sources and write registry/manifest snapshots."""
 
-    ensure_generated_directories(paths)
+    tif.utils.ensure_generated_directories(paths)
     write_source_registry(paths)
     records = []
     for source in sources:
@@ -218,14 +226,16 @@ def download_sources(
         raise DownloadError(f"Failed to download required sources: {failed_ids}")
     return records
 
+
 def main() -> int:
     try:
-        records = download_sources(DEFAULT_PATHS)
+        records = download_sources(tif.utils.DEFAULT_PATHS)
     except DownloadError as exc:
         print(f"download: {exc}")
         return 1
     print(f"download: downloaded {len(records)} raw sources.")
     print(
-        f"download: manifest written to {(DEFAULT_PATHS.raw_data / 'source_manifest.json').relative_to(DEFAULT_PATHS.root)}"
+        "download: manifest written to "
+        f"{(tif.utils.DEFAULT_PATHS.raw_data / 'source_manifest.json').relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
     return 0

@@ -36,7 +36,7 @@ The repository now contains the full command pipeline. The remaining project wor
 | Task                                           | Output                                                               |
 | ---------------------------------------------- | -------------------------------------------------------------------- |
 | Document architecture and repository structure | Updated `docs/` pages                                                |
-| Create package layout                          | `src/turkish_inflation_forecasting/`                                 |
+| Create package layout                          | `src/tif/`                                                           |
 | Configure stage entrypoints                    | Stage-level commands callable through `uv run` and `just`            |
 | Add tests directory and fixtures policy        | Deterministic tests can be added without committing full datasets    |
 | Update ignore rules                            | Generated `data/` and `output/` artifacts stay out of source control |
@@ -94,7 +94,7 @@ The repository now contains the full command pipeline. The remaining project wor
 
 - Initial documentation scaffold exists.
 - `uv`, `just`, and Zensical are already present in the repository template.
-- Python package foundation exists under `src/turkish_inflation_forecasting/`.
+- Python package foundation exists under `src/tif/`.
 - Stage-specific console entrypoints are registered through `pyproject.toml`.
 - `just` exposes pipeline, quality, test, and documentation commands.
 - Generated `data/` and `output/` directory placeholders are tracked while generated contents are ignored.

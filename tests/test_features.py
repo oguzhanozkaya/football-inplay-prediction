@@ -1,6 +1,6 @@
 import pandas as pd
 
-from turkish_inflation_forecasting.features.build import build_model_dataset
+import tif.features
 
 
 def test_build_model_dataset_uses_chronological_splits_and_safe_cpi_lags() -> None:
@@ -38,7 +38,9 @@ def test_build_model_dataset_uses_chronological_splits_and_safe_cpi_lags() -> No
         }
     )
 
-    dataset, metadata, vocabulary, split_summary = build_model_dataset(cpi_target, monthly_numeric, text_documents)
+    dataset, metadata, vocabulary, split_summary = tif.features.build_model_dataset(
+        cpi_target, monthly_numeric, text_documents
+    )
 
     assert dataset["target_month_start"].gt(dataset["forecast_origin_month_start"]).all()
     assert dataset[metadata["numeric_feature_columns"]].notna().all().all()

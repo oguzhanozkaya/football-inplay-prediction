@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import calendar
 import re
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
 from xml.etree import ElementTree
 
 import pandas as pd
@@ -91,7 +88,7 @@ def preprocess_cpi_target(raw_html_path: Path, output_path: Path) -> pd.DataFram
 def parse_fred_csv(content: str, source_id: str) -> pd.DataFrame:
     """Parse one public FRED CSV into the project's long numeric schema."""
 
-    fred_column, series_id, frequency = FRED_SERIES[source_id]
+    fred_column, series_id, frequency = tif.utils.FRED_SERIES[source_id]
     frame = pd.read_csv(StringIO(content), na_values=[".", ""])
     frame = frame.rename(columns={"observation_date": "date", fred_column: "value"})
     frame["date"] = pd.to_datetime(frame["date"])
@@ -107,9 +104,11 @@ def parse_fred_csv(content: str, source_id: str) -> pd.DataFrame:
 def parse_cbrt_fx_archive(raw_data_path: Path) -> pd.DataFrame:
     """Parse downloaded CBRT month-end FX XML files into long series rows."""
 
-    xml_paths = sorted((raw_data_path / CBRT_FX_MONTH_END.raw_path).glob("*/*.xml"))
+    xml_paths = sorted((raw_data_path / tif.utils.CBRT_FX_MONTH_END.raw_path).glob("*/*.xml"))
     if not xml_paths:
-        raise FileNotFoundError(f"No CBRT FX XML files found under {raw_data_path / CBRT_FX_MONTH_END.raw_path}")
+        raise FileNotFoundError(
+            f"No CBRT FX XML files found under {raw_data_path / tif.utils.CBRT_FX_MONTH_END.raw_path}"
+        )
 
     fx_rates = pd.concat([parse_cbrt_fx_xml(path.read_bytes()) for path in xml_paths], ignore_index=True)
     rows = []
@@ -136,7 +135,7 @@ def parse_cbrt_fx_archive(raw_data_path: Path) -> pd.DataFrame:
     )
     basket = basket.merge(fx_rates.groupby("month_start", as_index=False)["date"].max(), on="month_start", how="left")
     basket["series_id"] = "fx_basket_try_month_end"
-    basket["source_id"] = CBRT_FX_MONTH_END.source_id
+    basket["source_id"] = tif.utils.CBRT_FX_MONTH_END.source_id
     basket["frequency"] = "monthly"
     basket = basket.rename(columns={"fx_basket_try_month_end": "value"})
     return pd.concat([frame, basket[frame.columns]], ignore_index=True).sort_values(["month_start", "series_id"])
@@ -146,7 +145,11 @@ def build_numeric_series(raw_data_path: Path) -> pd.DataFrame:
     """Build a long table of normalized numeric source observations."""
 
     frames = [parse_cbrt_fx_archive(raw_data_path)]
-    for source in (FRED_BRENT_OIL, FRED_TURKEY_INDUSTRIAL_PRODUCTION, FRED_TURKEY_UNEMPLOYMENT_RATE):
+    for source in (
+        tif.utils.FRED_BRENT_OIL,
+        tif.utils.FRED_TURKEY_INDUSTRIAL_PRODUCTION,
+        tif.utils.FRED_TURKEY_UNEMPLOYMENT_RATE,
+    ):
         frames.append(parse_fred_csv((raw_data_path / source.raw_path).read_text(encoding="utf-8"), source.source_id))
     return pd.concat(frames, ignore_index=True).sort_values(["date", "series_id"]).reset_index(drop=True)
 
@@ -188,85 +191,6 @@ def preprocess_numeric_sources(
     return numeric_series, monthly_numeric
 
 
-def sources_by_category(category: str) -> tuple[SourceDefinition, ...]:
-    """Return sources for one registry category."""
-
-    return tuple(source for source in SOURCE_REGISTRY if source.category == category)
-
-
-def source_by_id(source_id: str) -> SourceDefinition:
-    """Return one source definition by id."""
-
-    for source in SOURCE_REGISTRY:
-        if source.source_id == source_id:
-            return source
-    raise KeyError(f"Unknown source id: {source_id}")
-
-
-CBRT_BASE_URL = "https://www.tcmb.gov.tr"
-ANNOUNCEMENT_CODE_PATTERN = re.compile(r"ANO(?P<year>\d{4})-(?P<number>\d{2})")
-DATE_IN_TITLE_PATTERN = re.compile(r"(?P<day>\d{1,2})[/.](?P<month>\d{1,2})[/.](?P<year>\d{4})")
-ENGLISH_DATE_PATTERN = re.compile(
-    r"\b(?P<month>January|February|March|April|May|June|July|August|September|October|November|December) "
-    r"(?P<day>\d{1,2}), (?P<year>\d{4})\b"
-)
-DAY_FIRST_ENGLISH_DATE_PATTERN = re.compile(
-    r"\b(?P<day>\d{1,2}) "
-    r"(?P<month>January|February|March|April|May|June|July|August|September|October|November|December) "
-    r"(?P<year>\d{4})\b"
-)
-MONTHS = {
-    "January": 1,
-    "February": 2,
-    "March": 3,
-    "April": 4,
-    "May": 5,
-    "June": 6,
-    "July": 7,
-    "August": 8,
-    "September": 9,
-    "October": 10,
-    "November": 11,
-    "December": 12,
-}
-
-
-def _normalize_url(href: str) -> str:
-    return urljoin(CBRT_BASE_URL, href)
-
-
-def _document_id(source_id: str, url: str) -> str:
-    match = ANNOUNCEMENT_CODE_PATTERN.search(url)
-    if match:
-        return f"{source_id}_{match.group(0).lower()}"
-    path = urlparse(url).path.rstrip("/").split("/")[-1]
-    return f"{source_id}_{path.lower()}"
-
-
-def raw_document_path(document_id: str) -> Path:
-    """Return the deterministic raw HTML path for one official text document."""
-
-    return Path("text/documents") / f"{document_id}.html"
-
-
-def _published_at_from_title(title: str) -> pd.Timestamp | pd.NaT:
-    match = DATE_IN_TITLE_PATTERN.search(title)
-    if not match:
-        return pd.NaT
-    return pd.Timestamp(year=int(match.group("year")), month=int(match.group("month")), day=int(match.group("day")))
-
-
-def _published_at_from_body_text(text: str) -> pd.Timestamp | pd.NaT:
-    match = ENGLISH_DATE_PATTERN.search(text) or DAY_FIRST_ENGLISH_DATE_PATTERN.search(text)
-    if not match:
-        return pd.NaT
-    return pd.Timestamp(
-        year=int(match.group("year")),
-        month=MONTHS[match.group("month")],
-        day=int(match.group("day")),
-    )
-
-
 def extract_cbrt_document_body_text(html: str) -> str:
     """Extract clean body text from an official CBRT document page."""
 
@@ -290,50 +214,17 @@ def extract_cbrt_document_body_text(html: str) -> str:
     return body_text
 
 
-def extract_cbrt_text_links(html: str, source: SourceDefinition) -> pd.DataFrame:
-    """Extract official CBRT text document links from a listing page."""
-
-    soup = BeautifulSoup(html, "html.parser")
-    rows = []
-    expected_path = source.url.split("/EN/TCMB%2BEN/")[-1].replace("%2B", "+")
-
-    for anchor in soup.find_all("a", href=True):
-        title = " ".join(anchor.get_text(" ", strip=True).split())
-        if not title:
-            continue
-        url = _normalize_url(anchor["href"])
-        if expected_path not in url or not ANNOUNCEMENT_CODE_PATTERN.search(url):
-            continue
-        document_id = _document_id(source.source_id, url)
-        rows.append(
-            {
-                "document_id": document_id,
-                "source_id": source.source_id,
-                "source_type": source.source_type,
-                "title": title,
-                "url": url,
-                "published_at": _published_at_from_title(title),
-                "raw_listing_path": source.raw_path.as_posix(),
-                "raw_document_path": raw_document_path(document_id).as_posix(),
-            }
-        )
-
-    if not rows:
-        raise ValueError(f"Could not extract text links from {source.source_id}")
-
-    documents = pd.DataFrame(rows).drop_duplicates(subset=["document_id"]).reset_index(drop=True)
-    return documents.sort_values(["published_at", "document_id"], na_position="last").reset_index(drop=True)
-
-
 def preprocess_text_documents(
-    raw_data_path: Path, output_path: Path, sources: tuple[SourceDefinition, ...]
+    raw_data_path: Path,
+    output_path: Path,
+    sources: tuple[tif.utils.SourceDefinition, ...],
 ) -> pd.DataFrame:
     """Build text document metadata and body text from downloaded official pages."""
 
     frames = []
     for source in sources:
         html = (raw_data_path / source.raw_path).read_text(encoding="utf-8")
-        frames.append(extract_cbrt_text_links(html, source))
+        frames.append(tif.utils.extract_cbrt_text_links(html, source))
     documents = pd.concat(frames, ignore_index=True).drop_duplicates(subset=["document_id"])
 
     body_texts = []
@@ -344,7 +235,7 @@ def preprocess_text_documents(
             raise FileNotFoundError(f"Missing raw text document: {raw_path}. Run `just download` first.")
         body_text = extract_cbrt_document_body_text(raw_path.read_text(encoding="utf-8"))
         body_texts.append(body_text)
-        published_dates.append(_published_at_from_body_text(body_text))
+        published_dates.append(tif.utils.published_at_from_body_text(body_text))
 
     documents = documents.copy()
     documents["body_text"] = body_texts
@@ -355,54 +246,6 @@ def preprocess_text_documents(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     documents.to_parquet(output_path, index=False)
     return documents
-
-
-CBRT_FX_ARCHIVE_BASE_URL = "https://www.tcmb.gov.tr/kurlar"
-FX_START_MONTH = date(2005, 1, 1)
-
-
-def latest_completed_month(today: date | None = None) -> date:
-    """Return the first day of the latest completed calendar month."""
-
-    today = datetime.now(UTC).date() if today is None else today
-    first_day_this_month = date(today.year, today.month, 1)
-    latest_month_end = first_day_this_month - timedelta(days=1)
-    return date(latest_month_end.year, latest_month_end.month, 1)
-
-
-def iter_month_starts(start_month: date = FX_START_MONTH, end_month: date | None = None) -> list[date]:
-    """Return month starts from `start_month` through `end_month`, inclusive."""
-
-    end_month = latest_completed_month() if end_month is None else end_month
-    month = date(start_month.year, start_month.month, 1)
-    end_month = date(end_month.year, end_month.month, 1)
-    months = []
-    while month <= end_month:
-        months.append(month)
-        year = month.year + (month.month // 12)
-        next_month = 1 if month.month == 12 else month.month + 1
-        month = date(year, next_month, 1)
-    return months
-
-
-def month_end_candidates(month_start: date, fallback_days: int = 14) -> list[date]:
-    """Return candidate archive dates from month-end backward."""
-
-    last_day = calendar.monthrange(month_start.year, month_start.month)[1]
-    month_end = date(month_start.year, month_start.month, last_day)
-    return [month_end - timedelta(days=offset) for offset in range(fallback_days + 1)]
-
-
-def cbrt_fx_url_for_date(effective_date: date) -> str:
-    """Build the public CBRT XML URL for one archive date."""
-
-    return f"{CBRT_FX_ARCHIVE_BASE_URL}/{effective_date:%Y%m}/{effective_date:%d%m%Y}.xml"
-
-
-def cbrt_fx_raw_path_for_date(base_path: Path, effective_date: date) -> Path:
-    """Build the local raw XML path for one archive date."""
-
-    return base_path / f"{effective_date:%Y%m}" / f"{effective_date:%d%m%Y}.xml"
 
 
 def parse_cbrt_fx_xml(content: bytes) -> pd.DataFrame:
@@ -454,7 +297,7 @@ class PreprocessError(RuntimeError):
     """Raised when required raw inputs are missing or invalid."""
 
 
-def raw_source_exists(paths: ProjectPaths, source: SourceDefinition) -> bool:
+def raw_source_exists(paths: tif.utils.ProjectPaths, source: tif.utils.SourceDefinition) -> bool:
     """Return whether a registered raw source has been downloaded."""
 
     raw_path = paths.raw_data / source.raw_path
@@ -463,21 +306,23 @@ def raw_source_exists(paths: ProjectPaths, source: SourceDefinition) -> bool:
     return raw_path.is_file()
 
 
-def preprocess_raw_sources(paths: ProjectPaths = DEFAULT_PATHS) -> PreprocessResult:
+def preprocess_raw_sources(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS) -> PreprocessResult:
     """Convert downloaded raw sources into initial interim tables."""
 
-    ensure_generated_directories(paths)
-    cpi_raw_path = paths.raw_data / CBRT_CONSUMER_PRICES.raw_path
+    tif.utils.ensure_generated_directories(paths)
+    cpi_raw_path = paths.raw_data / tif.utils.CBRT_CONSUMER_PRICES.raw_path
     if not cpi_raw_path.is_file():
         raise PreprocessError(f"Missing raw CPI source: {cpi_raw_path}. Run `just download` first.")
 
-    numeric_sources = tuple(source for source in sources_by_category("numeric") if source != CBRT_CONSUMER_PRICES)
+    numeric_sources = tuple(
+        source for source in tif.utils.sources_by_category("numeric") if source != tif.utils.CBRT_CONSUMER_PRICES
+    )
     missing_numeric_sources = [source for source in numeric_sources if not raw_source_exists(paths, source)]
     if missing_numeric_sources:
         missing_ids = ", ".join(source.source_id for source in missing_numeric_sources)
         raise PreprocessError(f"Missing raw numeric sources: {missing_ids}. Run `just download` first.")
 
-    text_sources = sources_by_category("text")
+    text_sources = tif.utils.sources_by_category("text")
     missing_text_sources = [source for source in text_sources if not (paths.raw_data / source.raw_path).is_file()]
     if missing_text_sources:
         missing_ids = ", ".join(source.source_id for source in missing_text_sources)
@@ -506,22 +351,25 @@ def preprocess_raw_sources(paths: ProjectPaths = DEFAULT_PATHS) -> PreprocessRes
 
 def main() -> int:
     try:
-        result = preprocess_raw_sources(DEFAULT_PATHS)
+        result = preprocess_raw_sources(tif.utils.DEFAULT_PATHS)
     except (PreprocessError, ValueError) as exc:
         print(f"preprocess: {exc}")
         return 1
-    cpi_target_path = result.cpi_target_path.relative_to(DEFAULT_PATHS.root)
+    cpi_target_path = result.cpi_target_path.relative_to(tif.utils.DEFAULT_PATHS.root)
     print(f"preprocess: wrote {result.cpi_target_rows} CPI target rows to {cpi_target_path}")
     print(
         "preprocess: wrote "
-        f"{result.numeric_series_rows} numeric source rows to {result.numeric_series_path.relative_to(DEFAULT_PATHS.root)}"
+        f"{result.numeric_series_rows} numeric source rows to "
+        f"{result.numeric_series_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
     print(
         "preprocess: wrote "
-        f"{result.monthly_numeric_rows} monthly numeric rows to {result.monthly_numeric_path.relative_to(DEFAULT_PATHS.root)}"
+        f"{result.monthly_numeric_rows} monthly numeric rows to "
+        f"{result.monthly_numeric_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
     print(
         "preprocess: wrote "
-        f"{result.text_document_rows} text document rows to {result.text_documents_path.relative_to(DEFAULT_PATHS.root)}"
+        f"{result.text_document_rows} text document rows to "
+        f"{result.text_documents_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
     return 0

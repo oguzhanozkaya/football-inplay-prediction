@@ -22,18 +22,16 @@ The target repository structure is command-first and package-based. Generated da
 │   ├── predictions/            # Forecast outputs
 │   └── reports/                # Metrics and generated summaries
 ├── src/                        # Python source tree
-│   └── turkish_inflation_forecasting/
-│       ├── config.py           # Paths and shared configuration
-│       ├── pipeline.py         # Shared stage functions
-│       ├── entrypoints/        # Stage-specific console entrypoints
-│       ├── data/               # Downloads, scraping, preprocessing, alignment
-│       ├── features/           # Numeric and text feature generation
-│       ├── models/             # Baselines and PyTorch model definitions
-│       ├── training/           # Training loops, checkpoints, splits
-│       ├── evaluation/         # Metrics and backtesting
-│       ├── visualization/      # Plot generation
-│       └── utils/              # Shared utilities
-├── tests/                      # Tests and small fixtures
+│   └── tif/
+│       ├── __init__.py         # Package marker
+│       ├── utils.py            # Shared paths, source registry, constants, helper functions
+│       ├── download.py         # Download entrypoint and raw source manifest writing
+│       ├── preprocess.py       # Preprocess entrypoint and interim table construction
+│       ├── features.py         # Feature entrypoint and processed dataset construction
+│       ├── train.py            # Training entrypoint, baselines, and PyTorch models
+│       ├── evaluate.py         # Evaluation entrypoint and metrics reports
+│       └── plots.py            # Plot entrypoint and report figure generation
+├── tests/                      # One test file per source file
 ├── .gitattributes              # Git attributes
 ├── .gitignore                  # Git ignore rules
 ├── README.md                   # Project readme
@@ -44,52 +42,27 @@ The target repository structure is command-first and package-based. Generated da
 └── zensical.toml               # Website configuration
 ```
 
-Some directories may receive additional modules as implementation reaches the corresponding stage. The layout above is the target structure the codebase should converge to.
-
-## Python Package (`src/turkish_inflation_forecasting/`)
-
-The project uses a named package under `src/` instead of placing importable modules directly in `src/`. This keeps imports stable in tests, console entrypoints, and future packaging metadata.
-
-| Path             | Responsibility                                                                         |
-| ---------------- | -------------------------------------------------------------------------------------- |
-| `config.py`      | Defines project paths, default file names, and shared constants                        |
-| `pipeline.py`    | Contains shared stage behavior used by the console entrypoints                         |
-| `entrypoints/`   | Defines one console entrypoint per stage without subcommand flags                      |
-| `data/`          | Downloads source files, scrapes text, normalizes data, and aligns monthly observations |
-| `features/`      | Builds lagged, rolling, transformed, tokenized, and windowed features                  |
-| `models/`        | Contains baselines, numeric sequence models, text encoders, and fusion models          |
-| `training/`      | Contains PyTorch training loops, early stopping, checkpoints, and chronological splits |
-| `evaluation/`    | Calculates metrics, backtests models, and compares baselines                           |
-| `visualization/` | Produces plots used by reports, documentation, and the article                         |
-| `utils/`         | Shared logging, seed control, serialization, and small helpers                         |
-
-The package name is `turkish_inflation_forecasting`. The import path looks like:
+The package is intentionally flat: each pipeline stage has one importable source file and one console entrypoint. Cross-stage code lives in `tif.utils`; stage modules should import it as a module:
 
 ```python
-from turkish_inflation_forecasting.data import preprocess
+import tif.utils
+
+max_tokens = tif.utils.MAX_TOKENS
 ```
 
-Current data modules:
+## Python Package (`src/tif/`)
 
-| Path                 | Responsibility                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| `data/sources.py`    | Source registry for official numeric and text sources                                |
-| `data/download.py`   | Raw HTML downloads, document page downloads, registry snapshot, and manifest writing |
-| `data/cpi.py`        | CBRT Consumer Prices parsing and CPI MoM target construction                         |
-| `data/fx.py`         | CBRT exchange-rate XML archive date selection, URL construction, and parsing         |
-| `data/numeric.py`    | FRED CSV parsing, FX normalization, and monthly numeric aggregation                  |
-| `data/text.py`       | CBRT text listing metadata and document body extraction                              |
-| `data/preprocess.py` | Stage coordinator that writes initial interim tables                                 |
+| Path            | Responsibility                                                                  |
+| --------------- | ------------------------------------------------------------------------------- |
+| `utils.py`      | Project paths, source registry, shared constants, CBRT/FRED helper functions    |
+| `download.py`   | Raw source downloads, CBRT FX archive downloads, text document downloads        |
+| `preprocess.py` | CPI target parsing, numeric normalization, text body extraction, interim writes |
+| `features.py`   | Leakage-safe lag, rolling, text-window, tokenizer, and split feature generation |
+| `train.py`      | Baselines, classical models, PyTorch model definitions, training, predictions   |
+| `evaluate.py`   | MAE, RMSE, direction accuracy, and baseline delta reports                       |
+| `plots.py`      | Static report figures for CPI history, predictions, residuals, and comparison   |
 
-Current modeling modules:
-
-| Path                     | Responsibility                                                                      |
-| ------------------------ | ----------------------------------------------------------------------------------- |
-| `features/build.py`      | Leakage-safe lag, rolling, text-window, tokenizer, and split feature generation     |
-| `models/deep.py`         | Raw PyTorch numeric MLP, numeric GRU, TextCNN, and fusion model definitions         |
-| `training/train.py`      | Baselines, classical models, PyTorch training loops, checkpoints, and predictions   |
-| `evaluation/metrics.py`  | MAE, RMSE, direction accuracy, and baseline delta reports                           |
-| `visualization/plots.py` | Static report figures for CPI history, predictions, residuals, and model comparison |
+Tests mirror this source layout. Each source file has one corresponding test file under `tests/`, for example `src/tif/preprocess.py` is covered by `tests/test_preprocess.py`.
 
 ## Data Directories
 
@@ -98,7 +71,7 @@ Current modeling modules:
 | `data/raw/`       | Source-native downloaded files and scraped documents | ignored    |
 | `data/interim/`   | Cleaned source tables before final modeling joins    | ignored    |
 | `data/processed/` | Leakage-safe model-ready datasets                    | ignored    |
-| `tests/fixtures/` | Tiny deterministic files used by tests               | committed  |
+| `tests/`          | Deterministic unit tests for source files            | committed  |
 
 Full datasets should not be committed. The repository should commit the code and source definitions needed to reproduce them.
 
@@ -136,13 +109,13 @@ Stage-level command mapping:
 | Recipe            | Console entrypoint               | Responsibility                                  |
 | ----------------- | -------------------------------- | ----------------------------------------------- |
 | `just sync`       | `uv sync`                        | Install or update the Python environment        |
-| `just download`   | `turkish-inflation-download`     | Download numeric data and text sources          |
-| `just preprocess` | `turkish-inflation-preprocess`   | Clean raw sources and build interim tables      |
-| `just features`   | `turkish-inflation-features`     | Build model-ready numeric and text features     |
-| `just train`      | `turkish-inflation-train`        | Train baselines and deep learning models        |
-| `just evaluate`   | `turkish-inflation-evaluate`     | Evaluate models on chronological splits         |
-| `just plots`      | `turkish-inflation-plots`        | Generate figures for reports and article drafts |
-| `just run`        | `turkish-inflation-run`          | Run the complete pipeline                       |
+| `just download`   | `tif-download`                   | Download numeric data and text sources          |
+| `just preprocess` | `tif-preprocess`                 | Clean raw sources and build interim tables      |
+| `just features`   | `tif-features`                   | Build model-ready numeric and text features     |
+| `just train`      | `tif-train`                      | Train baselines and deep learning models        |
+| `just evaluate`   | `tif-evaluate`                   | Evaluate models on chronological splits         |
+| `just plots`      | `tif-plots`                      | Generate figures for reports and article drafts |
+| `just run`        | stage recipe chain               | Run the complete pipeline                       |
 | `just check`      | formatting and lint commands     | Run formatting and lint checks                  |
 | `just fix`        | formatting and lint fix commands | Apply automated formatting and lint fixes       |
 | `just ci`         | `just check` and `just test`     | Run the full verification gate                  |

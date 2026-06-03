@@ -7,16 +7,17 @@ import os
 import pickle
 import random
 import re
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import torch
-from torch import nn
-from torch.utils.data import DataLoader, Dataset, Subset
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
-from dataclasses import asdict, dataclass
-from pathlib import Path
+from torch import nn
+from torch.utils.data import DataLoader, Dataset, Subset
 
 import tif.utils
 
@@ -120,6 +121,7 @@ class FusionRegressor(nn.Module):
         text_representation = self.text_encoder(token_ids)
         return self.head(torch.cat([numeric_representation, text_representation], dim=1)).squeeze(-1)
 
+
 LAG_FEATURE_PATTERN = re.compile(r"(?P<base>.+)_lag_(?P<lag>\d+)$")
 SEQUENCE_STEPS = (12, 6, 3, 2, 1, 0)
 
@@ -218,7 +220,7 @@ def _resolve_device(config: TrainingConfig) -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def _pad_token_sequences(sequences: pd.Series, max_length: int = MAX_TEXT_TOKENS) -> np.ndarray:
+def _pad_token_sequences(sequences: pd.Series, max_length: int = tif.utils.MAX_TOKENS) -> np.ndarray:
     token_matrix = np.zeros((len(sequences), max_length), dtype=np.int64)
     for row_index, sequence in enumerate(sequences):
         values = list(sequence) if isinstance(sequence, (list, tuple, np.ndarray)) else []
@@ -385,10 +387,13 @@ def _write_training_markdown(path: Path, summary: dict[str, object]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def train_models(paths: ProjectPaths = DEFAULT_PATHS, config: TrainingConfig | None = None) -> TrainingResult:
+def train_models(
+    paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS,
+    config: TrainingConfig | None = None,
+) -> TrainingResult:
     """Train baselines, classical models, and raw PyTorch models."""
 
-    ensure_generated_directories(paths)
+    tif.utils.ensure_generated_directories(paths)
     config = TrainingConfig.from_environment() if config is None else config
     _set_seed(config.seed)
     dataset_path = paths.processed_data / "model_dataset.parquet"
@@ -525,15 +530,17 @@ def train_models(paths: ProjectPaths = DEFAULT_PATHS, config: TrainingConfig | N
         prediction_rows=len(predictions_frame),
     )
 
+
 def main() -> int:
     try:
-        result = train_models(DEFAULT_PATHS)
+        result = train_models(tif.utils.DEFAULT_PATHS)
     except (TrainingError, ValueError, FileNotFoundError) as exc:
         print(f"train: {exc}")
         return 1
     print(f"train: trained {result.model_count} models")
     print(
         "train: wrote "
-        f"{result.prediction_rows} prediction rows to {result.predictions_csv_path.relative_to(DEFAULT_PATHS.root)}"
+        f"{result.prediction_rows} prediction rows to "
+        f"{result.predictions_csv_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
     return 0

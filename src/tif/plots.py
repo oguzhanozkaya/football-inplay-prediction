@@ -42,10 +42,10 @@ def _best_model_from_metrics(metrics: pd.DataFrame) -> str:
     return str(validation.sort_values("mae").iloc[0]["model_name"])
 
 
-def generate_plots(paths: ProjectPaths = DEFAULT_PATHS) -> PlotResult:
+def generate_plots(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS) -> PlotResult:
     """Generate report figures from processed data, predictions, and metrics."""
 
-    ensure_generated_directories(paths)
+    tif.utils.ensure_generated_directories(paths)
     cpi_path = paths.interim_data / "cpi_mom.parquet"
     dataset_path = paths.processed_data / "model_dataset.parquet"
     metadata_path = paths.processed_data / "feature_metadata.json"
@@ -130,11 +130,11 @@ def generate_plots(paths: ProjectPaths = DEFAULT_PATHS) -> PlotResult:
 
 def main() -> int:
     try:
-        result = generate_plots(DEFAULT_PATHS)
+        result = generate_plots(tif.utils.DEFAULT_PATHS)
     except (PlotError, ValueError, FileNotFoundError) as exc:
         print(f"plots: {exc}")
         return 1
     print(f"plots: wrote {len(result.figure_paths)} figures")
     for figure_path in result.figure_paths:
-        print(f"plots: wrote {figure_path.relative_to(DEFAULT_PATHS.root)}")
+        print(f"plots: wrote {figure_path.relative_to(tif.utils.DEFAULT_PATHS.root)}")
     return 0

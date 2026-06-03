@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -81,10 +82,10 @@ def _write_metrics_markdown(path: Path, metrics: pd.DataFrame) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def evaluate_predictions(paths: ProjectPaths = DEFAULT_PATHS) -> EvaluationResult:
+def evaluate_predictions(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS) -> EvaluationResult:
     """Evaluate generated model predictions and write report artifacts."""
 
-    ensure_generated_directories(paths)
+    tif.utils.ensure_generated_directories(paths)
     predictions_path = paths.predictions / "predictions.parquet"
     if not predictions_path.is_file():
         raise EvaluationError(f"Missing predictions: {predictions_path}. Run `just train` first.")
@@ -116,12 +117,15 @@ def evaluate_predictions(paths: ProjectPaths = DEFAULT_PATHS) -> EvaluationResul
 
 def main() -> int:
     try:
-        result = evaluate_predictions(DEFAULT_PATHS)
+        result = evaluate_predictions(tif.utils.DEFAULT_PATHS)
     except (EvaluationError, ValueError, FileNotFoundError) as exc:
         print(f"evaluate: {exc}")
         return 1
     print(
-        f"evaluate: wrote {result.metric_rows} metric rows to {result.metrics_json_path.relative_to(DEFAULT_PATHS.root)}"
+        "evaluate: wrote "
+        f"{result.metric_rows} metric rows to {result.metrics_json_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
-    print(f"evaluate: wrote markdown report to {result.metrics_markdown_path.relative_to(DEFAULT_PATHS.root)}")
+    print(
+        f"evaluate: wrote markdown report to {result.metrics_markdown_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
+    )
     return 0

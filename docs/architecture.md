@@ -18,7 +18,7 @@ description: System Architecture.
 
 | Area               | Decision                                                      |
 | ------------------ | ------------------------------------------------------------- |
-| Python package     | `src/turkish_inflation_forecasting/`                          |
+| Python package     | `src/tif/`                                                    |
 | Target             | Next-month CPI MoM                                            |
 | Modeling framework | Raw PyTorch for deep learning                                 |
 | Baselines          | Naive, rolling mean, and classical machine learning models    |

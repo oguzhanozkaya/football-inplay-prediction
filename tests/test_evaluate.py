@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from turkish_inflation_forecasting.evaluation.metrics import build_metrics_table
+import tif.evaluate
 
 
 def test_build_metrics_table_adds_baseline_delta() -> None:
@@ -16,7 +16,7 @@ def test_build_metrics_table_adds_baseline_delta() -> None:
         }
     )
 
-    metrics = build_metrics_table(predictions)
+    metrics = tif.evaluate.build_metrics_table(predictions)
 
     ridge = metrics.set_index("model_name").loc["ridge"]
     assert ridge["mae"] == pytest.approx(0.2)

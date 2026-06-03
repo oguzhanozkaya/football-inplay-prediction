@@ -4,7 +4,7 @@
 
 # Default environment variables
 export FIP_SEED := env("FIP_SEED", "67")
-export FIP_EPOCHS := env("FIP_EPOCHS", "120")
+export FIP_EPOCHS := env("FIP_EPOCHS", "1200")
 export FIP_PATIENCE := env("FIP_PATIENCE", "300")
 export FIP_BATCH_SIZE := env("FIP_BATCH_SIZE", "512")
 export FIP_LEARNING_RATE := env("FIP_LEARNING_RATE", "0.00005")

@@ -304,13 +304,47 @@ def _write_history_artifacts(
     return history_csv, history_md, tuple(figure_paths)
 
 
+def _log_training_startup(
+    *,
+    config: TrainingConfig,
+    dataset: pd.DataFrame,
+    split_indices: dict[str, np.ndarray],
+    numeric_sequence: np.ndarray,
+    token_windows: np.ndarray,
+    metadata: dict[str, object],
+    vocabulary_size: int,
+    device: torch.device,
+) -> None:
+    """Print a readable training startup summary."""
+
+    split_summary = ", ".join(f"{split}={len(indices):,}" for split, indices in split_indices.items())
+    print("train: startup")
+    print(f"train:   data rows={len(dataset):,} splits=[{split_summary}]")
+    print(
+        "train:   tensors "
+        f"numeric_sequence={numeric_sequence.shape} token_windows={token_windows.shape} "
+        f"numeric_features={len(metadata['numeric_feature_columns']):,} vocabulary={vocabulary_size:,}"
+    )
+    print(
+        "train:   model "
+        f"text_embedding={config.text_embedding_dim} text_channels={config.text_channel_count} "
+        f"kernels={config.text_kernel_sizes} numeric_projection={config.numeric_projection_size} "
+        f"fusion_hidden={config.fusion_hidden_size} gru_hidden={config.gru_hidden_size} dropout={config.dropout}"
+    )
+    print(
+        "train:   optimization "
+        f"epochs={config.epochs} patience={config.patience} batch_size={config.batch_size} "
+        f"learning_rate={config.learning_rate:g} weight_decay={config.weight_decay:g} "
+        f"min_delta={config.early_stopping_min_delta:g} seed={config.seed} device={device}"
+    )
+
+
 def train_model(
     paths: fip.utils.ProjectPaths = fip.utils.DEFAULT_PATHS, config: TrainingConfig | None = None
 ) -> TrainingResult:
     config = TrainingConfig.from_environment() if config is None else config
     fip.utils.ensure_generated_directories(paths)
     set_random_seed(config.seed)
-    print(f"train: config={json.dumps(asdict(config), sort_keys=True)}")
     dataset_path = paths.processed_data / "model_dataset.parquet"
     metadata_path = paths.processed_data / "feature_metadata.json"
     vocabulary_path = paths.processed_data / "text_vocabulary.json"
@@ -330,11 +364,17 @@ def train_model(
     }
     if len(split_indices["train"]) == 0 or len(split_indices["validation"]) == 0:
         raise TrainingError("Train and validation splits must be non-empty")
-    print(
-        f"train: dataset rows={len(dataset)} splits={ {key: len(value) for key, value in split_indices.items()} } "
-        f"numeric_shape={numeric_sequence.shape} token_shape={token_windows.shape}"
-    )
     device = select_device(config.device)
+    _log_training_startup(
+        config=config,
+        dataset=dataset,
+        split_indices=split_indices,
+        numeric_sequence=numeric_sequence,
+        token_windows=token_windows,
+        metadata=metadata,
+        vocabulary_size=len(vocabulary),
+        device=device,
+    )
     model = FusionGRUClassifier(len(metadata["numeric_feature_columns"]), len(vocabulary), config).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)

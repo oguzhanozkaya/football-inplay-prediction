@@ -21,3 +21,23 @@ def test_sequence_plan_uses_lag_features() -> None:
 
     assert variables == ["a"]
     assert steps == list(tif.train.SEQUENCE_STEPS)
+
+
+def test_training_history_frame_extracts_neural_histories() -> None:
+    summary = {
+        "models": {
+            "last_value": {"type": "baseline"},
+            "numeric_mlp": {
+                "type": "deep_numeric",
+                "history": [
+                    {"epoch": 1, "train_loss": 2.0, "validation_loss": 3.0},
+                    {"epoch": 2, "train_loss": 1.0, "validation_loss": 2.0},
+                ],
+            },
+        }
+    }
+
+    history = tif.train._training_history_frame(summary)
+
+    assert history["model_name"].tolist() == ["numeric_mlp", "numeric_mlp"]
+    assert history["validation_loss"].tolist() == [3.0, 2.0]

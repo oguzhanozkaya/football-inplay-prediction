@@ -10,6 +10,7 @@ import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import torch
@@ -20,6 +21,9 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
 import tif.utils
+
+matplotlib.use("Agg")
+from matplotlib import pyplot as plt  # noqa: E402
 
 
 class NumericMLP(nn.Module):
@@ -158,6 +162,9 @@ class TrainingResult:
     predictions_csv_path: Path
     predictions_parquet_path: Path
     summary_path: Path
+    history_csv_path: Path
+    history_markdown_path: Path
+    training_figure_paths: tuple[Path, ...]
     model_count: int
     prediction_rows: int
 
@@ -396,6 +403,85 @@ def _write_training_markdown(path: Path, summary: dict[str, object]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _training_history_frame(summary: dict[str, object]) -> pd.DataFrame:
+    rows = []
+    for model_name, model_summary in summary["models"].items():
+        history = model_summary.get("history", [])
+        epoch_history = history.get("history", []) if isinstance(history, dict) else history
+        for epoch_metrics in epoch_history:
+            rows.append(
+                {
+                    "model_name": model_name,
+                    "model_type": model_summary["type"],
+                    "epoch": epoch_metrics["epoch"],
+                    "train_loss": epoch_metrics["train_loss"],
+                    "validation_loss": epoch_metrics["validation_loss"],
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _save_current_figure(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(path, dpi=160)
+    plt.close()
+
+
+def _write_training_history_artifacts(
+    paths: tif.utils.ProjectPaths,
+    summary: dict[str, object],
+) -> tuple[Path, Path, tuple[Path, ...]]:
+    history = _training_history_frame(summary)
+    history_csv_path = paths.reports / "training_history.csv"
+    history_markdown_path = paths.reports / "training_history.md"
+    history_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    history.to_csv(history_csv_path, index=False)
+
+    lines = ["# Training History", ""]
+    if history.empty:
+        lines.append("No neural training history was recorded.")
+    else:
+        lines.append("| Model | Epochs | Best Validation Loss | Final Train Loss | Final Validation Loss |")
+        lines.append("| ----- | ------ | -------------------- | ---------------- | --------------------- |")
+        for model_name, group in history.groupby("model_name", sort=True):
+            final = group.sort_values("epoch").iloc[-1]
+            lines.append(
+                f"| `{model_name}` | {len(group)} | {group['validation_loss'].min():.6f} | "
+                f"{final.train_loss:.6f} | {final.validation_loss:.6f} |"
+            )
+    history_markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    figure_paths: list[Path] = []
+    if not history.empty:
+        for model_name, group in history.groupby("model_name", sort=True):
+            group = group.sort_values("epoch")
+            plt.figure(figsize=(8, 4.5))
+            plt.plot(group["epoch"], group["train_loss"], label="Train loss")
+            plt.plot(group["epoch"], group["validation_loss"], label="Validation loss")
+            plt.title(f"Training Loss: {model_name}")
+            plt.xlabel("Epoch")
+            plt.ylabel("MSE loss")
+            plt.legend()
+            path = paths.figures / f"training_loss_{model_name}.png"
+            _save_current_figure(path)
+            figure_paths.append(path)
+
+        plt.figure(figsize=(9, 5))
+        for model_name, group in history.groupby("model_name", sort=True):
+            group = group.sort_values("epoch")
+            plt.plot(group["epoch"], group["validation_loss"], label=model_name)
+        plt.title("Validation Loss by Neural Model")
+        plt.xlabel("Epoch")
+        plt.ylabel("MSE loss")
+        plt.legend()
+        path = paths.figures / "training_validation_loss_comparison.png"
+        _save_current_figure(path)
+        figure_paths.append(path)
+
+    return history_csv_path, history_markdown_path, tuple(figure_paths)
+
+
 def train_models(
     paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS,
     config: TrainingConfig | None = None,
@@ -545,10 +631,14 @@ def train_models(
     summary_path = paths.models / "training_summary.json"
     _write_json(summary_path, summary)
     _write_training_markdown(paths.reports / "training_summary.md", summary)
+    history_csv_path, history_markdown_path, training_figure_paths = _write_training_history_artifacts(paths, summary)
     return TrainingResult(
         predictions_csv_path=predictions_csv_path,
         predictions_parquet_path=predictions_parquet_path,
         summary_path=summary_path,
+        history_csv_path=history_csv_path,
+        history_markdown_path=history_markdown_path,
+        training_figure_paths=training_figure_paths,
         model_count=len(model_summary),
         prediction_rows=len(predictions_frame),
     )
@@ -566,4 +656,12 @@ def main() -> int:
         f"{result.prediction_rows} prediction rows to "
         f"{result.predictions_csv_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
     )
+    print(f"train: wrote training history to {result.history_csv_path.relative_to(tif.utils.DEFAULT_PATHS.root)}")
+    print(
+        "train: wrote training history report to "
+        f"{result.history_markdown_path.relative_to(tif.utils.DEFAULT_PATHS.root)}"
+    )
+    print(f"train: wrote {len(result.training_figure_paths)} training figures")
+    for figure_path in result.training_figure_paths:
+        print(f"train: wrote {figure_path.relative_to(tif.utils.DEFAULT_PATHS.root)}")
     return 0

@@ -94,6 +94,8 @@ Current data foundation artifacts:
 | `data/processed/text_vocabulary.json`    | `just preprocess` | Train-split vocabulary built from project text                                |
 | `output/models/*.pt`                     | `just train`      | Raw PyTorch model checkpoints                                                 |
 | `output/predictions/predictions.*`       | `just train`      | Forecasts for all models and chronological splits                             |
+| `output/reports/training_history.*`      | `just train`      | Per-epoch train and validation losses for neural models                       |
+| `output/figures/training_*.png`          | `just train`      | Neural model training-loss curves                                             |
 | `output/reports/metrics.*`               | `just evaluate`   | MAE, RMSE, direction accuracy, volatility-normalized MAE, and baseline deltas |
 | `output/figures/*.png`                   | `just evaluate`   | CPI, prediction, residual, and comparison figures                             |
 | `output/reports/*_summary.md`            | `just evaluate`   | Split, data, best-model, feature, and text-corpus summaries                   |

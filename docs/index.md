@@ -7,17 +7,23 @@ hide:
 
 <p align="center"> <img src="_assets/logo.svg" alt="Logo" width="120em" /> </p>
 
-# Football In-Play Prediction {: align="center" }
+<h1 align="center" style="margin: 0;"> Football In-Play Prediction </h1>
+
+<h3 align="center" style="margin: 0.6em;">
+    Predicting football match outcomes at minute 45 using deep learning.
+</h3>
+
+<h3 align="center" style="margin: 1em;">
+    <a href="https://github.com/niri-wm/niri/discussions/325">Web Page and Documentation</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Presentation</a>
+</h3>
+
+---
 
 <div class="grid cards" markdown>
 
 -   ## Project
 
-    [Medium Article](https://oguzhanozkaya.github.io/football-inplay-prediction/)
-
-    [:fontawesome-regular-file-lines: Presentation](https://oguzhanozkaya.github.io/football-inplay-prediction/)
-
-    Predicting football match outcomes at minute 45 using deep learning.
+    This project predicts whether the final result will be a home win, draw, or away win using only match information available through minute 45. The core challenge is time alignment: commentary, plays, key events, and lineup-derived inputs must be sliced so later match information cannot leak into the in-play prediction.
 
     **Dataset**: [ESPN Soccer Data](https://www.kaggle.com/datasets/excel4soccer/espn-soccer-data)
 
@@ -30,10 +36,6 @@ hide:
 </div>
 
 <div class="grid cards" markdown>
-
--   ## Overview
-
-    This project predicts whether the final result will be a home win, draw, or away win using only match information available through minute 45. The core challenge is time alignment: commentary, plays, key events, and lineup-derived inputs must be sliced so later match information cannot leak into the in-play prediction.
 
 -   ## Objective
 

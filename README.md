@@ -1,21 +1,18 @@
-<p align="center"> <img src="docs/_assets/logo.svg" alt="Logo" width="120em" /> </p>
+<p align="center"> <img src="_assets/logo.svg" alt="Logo" width="120em" /> </p>
 
-<p align="center">
+<h1 align="center" style="margin: 0;"> Football In-Play Prediction </h1>
 
-# Football In-Play Prediction
+<h3 align="center" style="margin: 0.6em;">
+    Predicting football match outcomes at minute 45 using deep learning.
+</h3>
 
-Predicting football match outcomes at minute 45 using deep learning.
-
-</p>
+<h3 align="center" style="margin: 1em;">
+    <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Web Page and Documentation</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Presentation</a>
+</h3>
 
 ---
 
-**[Web Page and Documentation](https://oguzhanozkaya.github.io/football-inplay-prediction/)**
-
-[**Medium Article**](https://oguzhanozkaya.github.io/football-inplay-prediction/)
-
-[**Presentation**](https://oguzhanozkaya.github.io/football-inplay-prediction/)
-
+This project predicts whether the final result will be a home win, draw, or away win using only match information available through minute 45. The core challenge is time alignment: commentary, plays, key events, and lineup-derived inputs must be sliced so later match information cannot leak into the in-play prediction.
 
 **Dataset**: [ESPN Soccer Data](https://www.kaggle.com/datasets/excel4soccer/espn-soccer-data)
 

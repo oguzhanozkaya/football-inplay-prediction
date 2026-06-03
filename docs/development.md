@@ -33,6 +33,7 @@ description: Conventions, rules and policies for project development.
 - Splits must be chronological inside each league-season key.
 - Feature engineering must respect the minute-60 cutoff.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded unless future work implements explicit lagging.
+- Pre-match team strength features must use only fixtures before the current fixture timestamp.
 - External pretrained language models, pretrained embeddings, and language model APIs are not used.
 - Text is not an active model input in the current numeric-window pipeline.
 - The active model is one architecture only: numeric Temporal CNN over 5-minute windows.

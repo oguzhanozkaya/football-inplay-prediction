@@ -36,7 +36,7 @@ Feature availability rules are conservative:
 | Commentary | Use rows with parsed clock at or before minute 60; missing clocks are treated as early text. |
 | Lineups    | Use formation and starter metadata; exclude winner fields and post-cutoff substitutions.     |
 
-Each match is represented as 12 five-minute windows from `0-5` through `55-60`. Windows contain current event counts, cumulative match state, score and event differentials, coordinate summaries, event-type counts, commentary counts, and safe lineup features. Text is not used as an active model input.
+Each match is represented as 12 five-minute windows from `0-5` through `55-60`. Windows contain current event counts, cumulative match state, score-state flags, score and event differentials, coordinate summaries, event-type counts, commentary counts, safe lineup features, and leakage-safe pre-match team-strength features. Text is not used as an active model input.
 
 ## Model
 

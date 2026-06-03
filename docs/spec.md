@@ -40,7 +40,7 @@ Each observation in `data/processed/model_dataset.parquet` represents one comple
 | ------------ | ------------------------------------------------------------------------------------- |
 | Time keys    | Match date, split, league, league-season key, event id                                |
 | Target       | Final result label and numeric class id                                               |
-| Numeric      | One 5-minute numeric feature sequence per match, from `0-5` through `55-60`           |
+| Numeric      | One 5-minute numeric feature sequence per match, from `0-5` through `55-60`, including safe pre-match team strength features |
 | Leakage rule | No play, key event, commentary, or unsafe lineup data after minute 60 may enter input |
 
 ## Outputs
@@ -110,9 +110,16 @@ Pipeline and model settings are Python constants near the top of `fig.py`. Edit 
 | `TEMPORAL_KERNEL_SIZE`     | `3`         | Temporal convolution kernel size.                |
 | `TEMPORAL_BLOCK_COUNT`     | `2`         | Residual temporal convolution block count.       |
 | `FUSION_HIDDEN_SIZE`       | `128`       | Final fusion classifier width.                   |
+| `MLP_HIDDEN_SIZE`          | `256`       | Optional flattened MLP diagnostic hidden width.  |
 | `DROPOUT`                  | `0.15`      | Numeric and fusion dropout.                      |
 | `LABEL_SMOOTHING`          | `0.05`      | Cross-entropy label smoothing.                   |
 | `NORMALIZATION_GROUPS`     | `8`         | GroupNorm group count for temporal blocks.       |
+| `USE_CLASS_WEIGHTS`        | `True`      | Weight classes inversely to train frequencies.   |
+| `MODEL_TYPE`               | `tcn`       | Active model: `tcn` or diagnostic `mlp`.         |
+| `TEAM_FORM_WINDOW`         | `5`         | Recent-match window for rolling team form.       |
+| `ELO_INITIAL_RATING`       | `1500.0`    | Initial team Elo rating.                         |
+| `ELO_K_FACTOR`             | `20.0`      | Elo update step size.                            |
+| `ELO_HOME_ADVANTAGE`       | `60.0`      | Home advantage added in Elo expectation.         |
 | `DATALOADER_WORKERS`       | `4`         | DataLoader worker count.                         |
 | `MIXED_PRECISION`          | `True`      | Use CUDA automatic mixed precision.              |
 | `COMPILE_MODEL`            | `False`     | Compile the PyTorch model before training.       |

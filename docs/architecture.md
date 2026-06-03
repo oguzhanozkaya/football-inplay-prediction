@@ -77,7 +77,9 @@ Splits are assigned inside each `seasonType-leagueId-year` group. This prevents 
 | Player stats | Excluded until explicit lagging is implemented.                                                                       |
 | Standings    | Excluded until scrape-time snapshots are converted into safe pre-match features.                                      |
 
-Feature construction aggregates play, key-event, commentary, coordinate, and lineup inputs with `eventId` groupby and pivot operations inside each 5-minute window. Each window contains current-window counts, cumulative match state, score and event differentials, coordinate summaries, and safe lineup features.
+Feature construction aggregates play, key-event, commentary, coordinate, and lineup inputs with `eventId` groupby and pivot operations inside each 5-minute window. Each window contains current-window counts, cumulative match state, explicit score-state flags, score and event differentials, coordinate summaries, safe lineup features, and leakage-safe pre-match team strength features.
+
+Pre-match team strength is computed before each fixture date only. It includes rolling recent form, season-to-date rates, and an Elo-like rating updated after prior completed matches. Matches on the same timestamp are feature-extracted before any of them update team state, avoiding same-date leakage.
 
 ## Model
 
@@ -99,6 +101,8 @@ For each match:
 - max pooling, mean pooling, and the final window state are concatenated for classification.
 
 There is no GRU, LSTM, TextCNN, or text embedding branch.
+
+`MODEL_TYPE="mlp"` enables a flattened numeric MLP diagnostic model. It is useful for checking whether temporal convolution is providing value over a simpler tabular sequence baseline; the default active model is `MODEL_TYPE="tcn"`.
 
 ## Evaluation
 

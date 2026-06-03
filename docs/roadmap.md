@@ -37,6 +37,7 @@ The repository is implemented as a single-script football in-play prediction pip
 - The script downloads the Kaggle ESPN Soccer dataset when `data/raw/` is missing required directories.
 - Preprocessing writes `model_dataset.parquet`, metadata, and split summaries.
 - Preprocessing slices plays, key events, and commentary through minute 60 only.
+- Preprocessing adds leakage-safe rolling team form and Elo-like pre-match strength features.
 - Splits are assigned chronologically inside each league-season key.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded from first-model inputs.
 - The model has no GRU, LSTM, TextCNN, or text embedding branch.

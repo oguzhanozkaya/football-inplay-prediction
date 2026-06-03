@@ -4,10 +4,10 @@
 
 # Default environemnt variables
 export TIF_SEED := env("TIF_SEED", "447")
-export TIF_EPOCHS := env("TIF_EPOCHS", "200")
-export TIF_PATIENCE := env("TIF_PATIENCE", "60")
+export TIF_EPOCHS := env("TIF_EPOCHS", "36000")
+export TIF_PATIENCE := env("TIF_PATIENCE", "100000")
 export TIF_BATCH_SIZE := env("TIF_BATCH_SIZE", "32")
-export TIF_LEARNING_RATE := env("TIF_LEARNING_RATE", "0.0001")
+export TIF_LEARNING_RATE := env("TIF_LEARNING_RATE", "0.00001")
 export TIF_RANDOM_FOREST_TREES := env("TIF_RANDOM_FOREST_TREES", "200")
 export TIF_DEVICE := env("TIF_DEVICE", "cuda")
 

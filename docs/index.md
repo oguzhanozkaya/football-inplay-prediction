@@ -13,9 +13,9 @@ hide:
 
 -   ## Project
 
-    [**Medium Article**](https://oguzhanozkaya.github.io/football-inplay-prediction/)
+    [Medium Article](https://oguzhanozkaya.github.io/football-inplay-prediction/)
 
-    [:fontawesome-regular-file-lines: **Presentation**](https://oguzhanozkaya.github.io/football-inplay-prediction/)
+    [:fontawesome-regular-file-lines: Presentation](https://oguzhanozkaya.github.io/football-inplay-prediction/)
 
     Predicting football match outcomes at minute 45 using deep learning.
 

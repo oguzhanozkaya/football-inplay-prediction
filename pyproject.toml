@@ -1,12 +1,9 @@
-[build-system]
-requires = ["uv_build>=0.11.15,<0.12"]
-build-backend = "uv_build"
-
 [project]
 name = "football-inplay-prediction"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "kaggle>=1.7.4.5",
     "matplotlib>=3.10.8",
     "numpy>=2.3.5",
     "pandas>=2.3.3",
@@ -15,19 +12,8 @@ dependencies = [
     "torch>=2.9.1",
 ]
 
-[tool.uv.build-backend]
-module-name = "fip"
-module-root = "src"
-
-[project.scripts]
-fip-download = "fip.download:main"
-fip-preprocess = "fip.preprocess:main"
-fip-train = "fip.train:main"
-fip-evaluate = "fip.evaluate:main"
-
 [dependency-groups]
 dev = [
-    "pytest>=9.0.1",
     "ruff>=0.15.13",
     "ty>=0.0.39",
 ]

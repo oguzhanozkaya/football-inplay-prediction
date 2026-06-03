@@ -37,10 +37,10 @@ hide:
 
 -   ## Objective
 
-    Build a reproducible command-driven pipeline that validates local ESPN Soccer raw data, constructs leakage-safe match windows, trains one hybrid neural classifier, evaluates chronological splits, and generates report-ready outputs.
+    Build a reproducible command-driven pipeline that downloads or validates ESPN Soccer raw data, constructs leakage-safe first-half match features, trains one hybrid neural classifier, evaluates league-aware chronological splits, and generates report-ready outputs.
 
 -   ## Approach
 
-    Combine text commentary and numerical event features inside one raw-PyTorch architecture: a TextCNN encodes each text window, numeric features are projected per window, fused vectors are passed through a GRU, and the final hidden state predicts home/draw/away.
+    Combine text commentary and numerical event features inside one raw-PyTorch architecture: a TextCNN encodes the first-half text, an MLP encodes first-half numeric features, and a fusion classifier predicts home/draw/away.
 
 </div>

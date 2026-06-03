@@ -16,12 +16,13 @@ description: Conventions, rules and policies for project development.
 - **scikit-learn**: Metrics and preprocessing utilities
 - **matplotlib**: Static report figures
 - **numpy/pandas**: Numeric arrays and tabular pipeline artifacts
+- **kaggle**: Dataset download when local raw files are absent
 
 #### Code Style
 
 - Quote style: double
 - Indent style: space
-- Importable code lives under `src/fip/`.
+- The executable source is the root `fig.py` script.
 - Generated data, reports, figures, and checkpoints are not source code.
 
 ### Modeling Rules
@@ -29,63 +30,47 @@ description: Conventions, rules and policies for project development.
 - Final match outcome is the only target.
 - Forecast origin is minute 45.
 - Random train/test splits are not allowed.
-- Chronological train, validation, and test periods are required.
+- Splits must be chronological inside each league-season key.
 - Feature engineering must respect the minute-45 cutoff.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded unless future work implements explicit lagging.
 - External pretrained language models, pretrained embeddings, and language model APIs are not allowed.
 - Text encoders must use tokenizers and embeddings trained on the project corpus from scratch.
-- The first model trains one architecture only: text windows plus numeric windows fused through a GRU classifier.
+- The active model is one architecture only: first-half TextCNN plus first-half numeric MLP classifier.
 
 ## Workflow
 
 ### Development Commands
 
 - `just sync` installs the Python environment.
-- `just run` runs the full pipeline.
+- `just run` runs the full pipeline: download, preprocess, train, and evaluate.
+- `just smoke` runs a short CPU smoke pipeline with a small match limit.
 - `just docs` serves the documentation site locally.
 
-Pipeline commands:
-
-- `just download` validates local ESPN raw data and writes source manifests.
-- `just preprocess` builds leakage-safe minute-45 match sequences.
-- `just train` trains the single fusion GRU classifier.
-- `just evaluate` computes classification metrics and generates report figures.
-
-`just run` executes the full pipeline in stage order: download, preprocess, train, and evaluate.
-
-Training, architecture, and performance defaults are controlled through environment variables documented in `docs/spec.md`. Use environment variables for smaller or longer runs, for example `FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just train`.
+Training, architecture, and performance defaults are controlled through environment variables documented in `docs/spec.md`. Use environment variables for smaller or longer runs, for example `FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just run`.
 
 ### Quality and Verification Commands
 
 - `just check` runs formatting and lint checks.
 - `just fix` runs automated format and lint fixes.
-- `just test` runs tests.
-- `just ci` runs the full check and test gate.
+- `just ci` runs the current verification gate.
 
 Use `just` recipes instead of raw tool commands when a recipe exists. Raw commands are acceptable only when no recipe exists yet.
 
-## Testing Policy
+## Verification Policy
 
-Tests should focus on deterministic project logic rather than model quality.
+The current repository does not keep a separate test suite. Verification focuses on:
 
-| Area                 | Required Coverage                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| Splits               | Chronological ordering and non-overlapping train, validation, and test periods       |
-| Leakage prevention   | No play, key event, commentary, or unsafe lineup data after minute 45 enters inputs  |
-| Dataset construction | Match labels, configured windows, numeric sequence shapes, and token sequence shapes |
-| Tokenization         | Vocabulary is built from the train split only                                        |
-| Model                | Fusion GRU forward pass returns one home/draw/away logit vector per match            |
-| Metrics              | Accuracy, macro F1, log loss, and per-class report calculations                      |
+- `just check` for formatting and linting;
+- `just smoke` for a short end-to-end run;
+- generated metrics and reports under `output/reports/` for model behavior.
 
 Training quality should be verified with generated reports and metrics, not unit tests.
 
-Each source file under `src/fip/` should have one corresponding test file under `tests/`. Shared helpers belong in `fip.utils`; stage modules should use module imports such as `import fip.utils` and access shared values as `fip.utils.MAX_TOKENS_PER_WINDOW`.
-
 ## Reproducibility
 
-- Raw ESPN data is placed locally under `data/raw/`.
+- Raw ESPN data is placed locally under `data/raw/`, either manually or by the Kaggle download step.
 - Full processed datasets are generated locally under `data/processed/`.
 - Model outputs are generated locally under `output/`.
 - Random seeds should be controlled in training commands.
-- Evaluation commands should write machine-readable metrics to `output/reports/`.
+- Evaluation commands write machine-readable metrics to `output/reports/`.
 - The final article should use figures and tables generated by project commands.

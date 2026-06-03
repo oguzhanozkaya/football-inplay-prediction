@@ -6,76 +6,63 @@ description: System Architecture.
 
 ## Design Principles
 
-- Reproducibility comes before convenience. Data validation, preprocessing, training, and evaluation are command-driven.
+- Reproducibility comes before convenience. Dataset download, preprocessing, training, and evaluation are command-driven by `fig.py`.
 - The target is final match outcome: home win, draw, or away win.
 - The forecast origin is minute 45.
 - No event, key event, commentary, or unsafe lineup information after minute 45 may enter model inputs.
-- Deep learning models are implemented with raw PyTorch.
+- Deep learning is implemented with raw PyTorch.
 - Text embeddings are trained from scratch. No external pretrained language model, pretrained embedding, or language model API is used.
-- The first model trains one architecture only, so there are no separate numeric-only, text-only, Ridge, or Random Forest training paths.
+- The model is intentionally simple: one TextCNN for first-half text, one MLP for first-half numeric features, and one fusion classifier.
 
 ## Decisions
 
-| Area               | Decision                                                       |
-| ------------------ | -------------------------------------------------------------- |
-| Python package     | `src/fip/`                                                     |
-| Dataset            | Local Kaggle ESPN Soccer dataset under `data/raw/`             |
-| Forecast origin    | Minute 45                                                      |
-| Target             | Final result: `home`, `draw`, `away`                           |
-| Modeling framework | Raw PyTorch                                                    |
-| Architecture       | TextCNN per window plus numeric projection plus GRU classifier |
-| Validation         | Chronological train, validation, and test split                |
-| Command interface  | `just` recipes wrapping stage-specific console entrypoints     |
+| Area               | Decision                                          |
+| ------------------ | ------------------------------------------------- |
+| Script             | `fig.py`                                          |
+| Dataset            | Kaggle ESPN Soccer dataset under `data/raw/`      |
+| Forecast origin    | Minute 45                                         |
+| Target             | Final result: `home`, `draw`, `away`              |
+| Modeling framework | Raw PyTorch                                       |
+| Architecture       | First-half TextCNN plus numeric MLP classifier    |
+| Validation         | Chronological split inside each league-season key |
+| Command interface  | `just run` wrapping `uv run python fig.py`        |
 
 ## Data Flow
 
 ```mermaid
 flowchart TD
-    A[data/raw/base_data] --> D[Download Validation]
-    B[data/raw/plays, keyEvents, commentary] --> D
-    C[data/raw/lineup_data] --> D
-    D --> E[source manifests]
-    A --> F[Preprocess]
-    B --> F
-    C --> F
-    F --> G[data/processed/model_dataset.parquet]
-    G --> H[Train Fusion GRU]
-    H --> I[output/models/fusion_gru.pt]
-    H --> J[output/predictions]
-    J --> K[Evaluate]
-    K --> L[output/reports]
-    K --> M[output/figures]
+    A[Kaggle ESPN Soccer] --> B[data/raw]
+    B --> C[fig.py]
+    C --> D[Build league-aware splits]
+    D --> E[Filter first-half rows <= 45]
+    E --> F[data/processed/model_dataset.parquet]
+    F --> G[Train TextCNN + Numeric MLP]
+    G --> H[output/models/textcnn_mlp.pt]
+    G --> I[output/predictions]
+    I --> J[Evaluate]
+    J --> K[output/reports]
+    J --> L[output/figures]
 ```
 
-The pipeline has three core responsibilities:
+The pipeline has four responsibilities:
 
-1. Validate local raw ESPN files and write an auditable manifest.
-2. Convert event streams into leakage-safe minute-45 match sequences.
-3. Train and evaluate one hybrid classifier.
+1. Download or reuse the local Kaggle raw dataset.
+2. Convert first-half event streams into one row per match.
+3. Train one hybrid text and numeric classifier.
+4. Generate prediction, metric, report, and figure artifacts.
 
-## Sequence Construction
+## Split Strategy
 
 ```mermaid
 flowchart TD
-    A[Match Events] --> B[Filter <= 45]
-    C[Commentary Text] --> B
-    D[Safe Lineups] --> B
-    B --> E[5-Minute Windows]
-    E --> F[Text Windows]
-    E --> G[Numeric Windows]
-    F --> H[Token IDs]
-    G --> I[Numeric Sequence]
-    H --> J[Model Dataset]
-    I --> J
+    A[Completed fixtures] --> B[Group by league-season key]
+    B --> C[Sort each group by date]
+    C --> D[Oldest 70 percent: train]
+    C --> E[Next 15 percent: validation]
+    C --> F[Latest 15 percent: test]
 ```
 
-The command defaults use a 45-minute cutoff and 15-minute windows, creating 3 sequence steps. Setting `FIP_WINDOW_MINUTES=5` creates 9 finer-grained sequence steps.
-
-| Window | Minute Range |
-| ------ | ------------ |
-| 0      | `0-15`       |
-| 1      | `15-30`      |
-| 2      | `30-45`      |
+Splits are assigned inside each `seasonType-leagueId-year` group. This prevents a global date sort from putting whole competitions mostly into one split. Very small league groups fall back to train-only or one validation and one test match when possible.
 
 ## Feature Rules
 
@@ -94,29 +81,28 @@ The command defaults use a 45-minute cutoff and 15-minute windows, creating 3 se
 
 ```mermaid
 flowchart TD
-    A[Token Windows] --> B[Embedding From Scratch]
-    B --> C[TextCNN Per Window]
-    D[Numeric Windows] --> E[Numeric Projection Per Window]
+    A[First-half token IDs] --> B[Embedding From Scratch]
+    B --> C[TextCNN]
+    D[First-half numeric vector] --> E[Numeric MLP]
     C --> F[Concatenate]
     E --> F
-    F --> G[Fusion Projection]
-    G --> H[GRU Across Match Windows]
-    H --> I[Home/Draw/Away Logits]
+    F --> G[Fusion MLP]
+    G --> H[Home/Draw/Away Logits]
 ```
 
-The model is `FusionGRUClassifier` in `src/fip/train.py`.
+The model is `FirstHalfClassifier` in `fig.py`.
 
-For every configured match-time window:
+For each match:
 
 - the text branch embeds token IDs and applies several 1D convolution kernels;
-- the numeric branch projects the numeric event vector;
-- both representations are concatenated and projected into a fused window vector.
+- the numeric branch projects first-half event, score-state, coordinate, and safe lineup features;
+- both representations are concatenated and passed through a final classifier.
 
-The GRU reads the fused window vectors and the final hidden state feeds a three-class classifier.
+There is no GRU and no time-window sequence.
 
 ## Evaluation
 
-Evaluation uses chronological splits and reports classification quality.
+Evaluation reports classification quality for train, validation, and test splits.
 
 | Metric                        | Purpose                                            |
 | ----------------------------- | -------------------------------------------------- |
@@ -125,5 +111,3 @@ Evaluation uses chronological splits and reports classification quality.
 | Log loss                      | Probability quality and confidence penalty         |
 | Per-class precision/recall/F1 | Class-specific behavior                            |
 | Confusion matrix              | Error structure across outcome classes             |
-
-The test split should be reviewed only after the selected training run is complete.

@@ -1,4 +1,4 @@
-# Football In-Play Prediction with Text and Event Sequences
+# Football In-Play Prediction with First-Half Text and Events
 
 ## Abstract
 
@@ -12,7 +12,7 @@ Each row represents one completed match. The model observes information availabl
 
 ## Data
 
-Raw data comes from the local ESPN Soccer dataset under `data/raw/`:
+Raw data comes from the ESPN Soccer dataset. `fig.py` downloads it from Kaggle when the expected `data/raw/` directories are missing:
 
 - `base_data/fixtures.csv` for dates, teams, final scores, status, and labels.
 - `plays_data/*.csv` for play-by-play events, clocks, text, scoring flags, teams, and coordinates.
@@ -24,7 +24,7 @@ Full-match team statistics, scrape-time standings, and season player aggregates 
 
 ## Feature Engineering
 
-The processed dataset is written by `just preprocess` to `data/processed/model_dataset.parquet`.
+The processed dataset is written by `python fig.py` to `data/processed/model_dataset.parquet`.
 
 Feature availability rules are conservative:
 
@@ -36,23 +36,23 @@ Feature availability rules are conservative:
 | Commentary | Use rows with parsed clock at or before minute 45; missing clocks are treated as early text. |
 | Lineups    | Use formation and starter metadata; exclude winner fields and post-cutoff substitutions.     |
 
-Each match is sliced into configured windows through minute 45. The command default uses `0-15`, `15-30`, and `30-45`; setting `FIP_WINDOW_MINUTES=5` creates 9 finer-grained windows. The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
+Each match has one first-half text field and one first-half numeric feature vector. The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
 
 ## Model
 
-Only one architecture is trained: `FusionGRUClassifier`.
+Only one architecture is trained: a first-half TextCNN plus numeric MLP classifier.
 
-For each configured match-time window:
+For each match:
 
-- a TextCNN encodes tokenized commentary and event text;
-- a numeric projection encodes event counts, score state, key-event counts, coordinates, and safe lineup features;
-- the two vectors are concatenated and projected into a fused window representation.
+- one TextCNN encodes all tokenized first-half commentary and event text;
+- one MLP encodes first-half event counts, score state, key-event counts, coordinates, and safe lineup features;
+- the two vectors are concatenated and passed to a classifier head.
 
-A GRU reads the fused window vectors. The final hidden state is passed to a three-class classifier for home/draw/away logits.
+No GRU or time-window sequence is used.
 
 ## Evaluation
 
-The split is chronological. The test period is not used for fitting vocabulary, scalers, model parameters, or early stopping.
+The split is chronological within each league-season key. Every league with enough matches contributes early matches to train, later matches to validation, and latest matches to test. The test period is not used for fitting vocabulary, scalers, model parameters, or early stopping.
 
 Metrics:
 
@@ -71,13 +71,13 @@ Replace this section after the extended training run.
 | Validation | TODO     | TODO     | TODO     |
 | Test       | TODO     | TODO     | TODO     |
 
-Generated figures after `just evaluate`:
+Generated figures after `just run`:
 
 - `output/figures/confusion_matrix.png`
 - `output/figures/class_distribution.png`
 - `output/figures/prediction_confidence.png`
 - `output/figures/metric_comparison.png`
-- `output/figures/training_loss_fusion_gru.png`
+- `output/figures/training_loss.png`
 
 ## Reproducibility
 
@@ -91,8 +91,7 @@ just run
 Short CPU smoke run:
 
 ```bash
-FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just train
-just evaluate
+just smoke
 ```
 
 ## Limitations

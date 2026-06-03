@@ -6,16 +6,18 @@ description: Tasks, priorities, known bugs, and the project roadmap.
 
 ## Status Overview
 
-The repository is migrated to football in-play prediction. The current pipeline validates local ESPN Soccer data, builds leakage-safe minute-45 match sequences, trains one hybrid fusion GRU classifier, and evaluates home/draw/away classification outputs.
+The repository is implemented as a single-script football in-play prediction pipeline. The current pipeline downloads or validates ESPN Soccer data, builds leakage-safe minute-45 match features, trains one first-half TextCNN plus numeric MLP classifier, and evaluates home/draw/away classification outputs.
 
 | Area                             | Status      |
 | -------------------------------- | ----------- |
 | Documentation structure          | Implemented |
-| Python package structure         | Implemented |
+| Single root script               | Implemented |
 | Command workflow                 | Implemented |
+| Kaggle raw-data download         | Implemented |
 | Raw data validation              | Implemented |
-| Minute-45 sequence preprocessing | Implemented |
-| Single fusion model              | Implemented |
+| Minute-45 preprocessing          | Implemented |
+| League-aware chronological split | Implemented |
+| Single TextCNN plus MLP model    | Implemented |
 | Evaluation reports               | Implemented |
 | Article draft                    | Implemented |
 
@@ -23,24 +25,24 @@ The repository is migrated to football in-play prediction. The current pipeline 
 
 | Priority | Task                             | Exit Criteria                                                                   |
 | -------- | -------------------------------- | ------------------------------------------------------------------------------- |
-| High     | Run extended training            | `FIP_EPOCHS=80 just train` completes on the selected device                     |
-| High     | Regenerate reports and figures   | `just evaluate` reflects final trained model predictions                        |
+| High     | Run extended training            | `just run` completes on the selected device                                     |
+| High     | Regenerate reports and figures   | `output/reports/` and `output/figures/` contain final run artifacts             |
 | High     | Fill article result placeholders | Final accuracy, macro F1, figures, and interpretation are added to `article.md` |
 
 ## Delivered Capabilities
 
-- Flat package exists under `src/fip/`.
-- Console entrypoints are registered as `fip-download`, `fip-preprocess`, `fip-train`, and `fip-evaluate`.
-- `just` exposes pipeline, quality, test, and documentation commands.
-- `just download` validates local ESPN raw data directories and writes raw source manifests.
-- `just preprocess` writes completed fixtures, minute-45 model sequences, feature metadata, vocabulary, and split summaries.
-- Preprocessing slices plays, key events, and commentary to configured windows through minute 45.
-- Preprocessing builds the text vocabulary from the train split only.
+- `fig.py` runs the complete pipeline from download through evaluation.
+- `just run` executes `uv run python fig.py`.
+- `just smoke` runs a short CPU end-to-end pipeline with `FIP_MATCH_LIMIT=200`.
+- The script downloads the Kaggle ESPN Soccer dataset when `data/raw/` is missing required directories.
+- Preprocessing writes `model_dataset.parquet`, metadata, vocabulary, and split summaries.
+- Preprocessing slices plays, key events, and commentary through minute 45 only.
+- Splits are assigned chronologically inside each league-season key.
+- The text vocabulary is built from the train split only.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded from first-model inputs.
-- `just train` trains only the single fusion GRU classifier.
-- `just train` writes a PyTorch checkpoint, predictions, training history, and a training-loss figure.
-- `just evaluate` writes JSON/Markdown classification metrics, a per-class report, high-confidence error examples, and evaluation figures.
-- Tests cover source registry integrity, manifest writing, minute cutoff behavior, sequence shapes, model forward shape, config parsing, and metrics.
+- The model has no GRU and no time-window sequence.
+- Training writes a PyTorch checkpoint, predictions, training history, and a training-loss figure.
+- Evaluation writes JSON/Markdown classification metrics, a per-class report, high-confidence error examples, and evaluation figures.
 
 ## Limitations
 
@@ -53,6 +55,6 @@ The repository is migrated to football in-play prediction. The current pipeline 
 
 - Add lagged pre-match team form and standings features with strict date cutoffs.
 - Add richer event taxonomy mappings from `keyEventDescription.csv`.
-- Add next-goal prediction as a second task after the final-outcome classifier is stable.
+- Add learning-rate warmup, cosine decay, and class weighting experiments.
 - Add calibration analysis and probability reliability reports.
 - Add league- or season-specific validation slices for robustness analysis.

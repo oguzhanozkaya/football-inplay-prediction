@@ -5,6 +5,8 @@ hide:
   - toc
 ---
 
+<p align="center"> <img src="_assets/logo.svg" alt="Logo" width="120em" /> </p>
+
 # Football In-Play Prediction {: align="center" }
 
 <div class="grid cards" markdown>

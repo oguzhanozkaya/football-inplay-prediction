@@ -186,6 +186,12 @@ def evaluate_predictions(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS
     """Evaluate generated model predictions and write report artifacts."""
 
     tif.utils.ensure_generated_directories(paths)
+    print(
+        "evaluate: starting "
+        f"predictions_dir={paths.predictions.relative_to(paths.root)} "
+        f"reports_dir={paths.reports.relative_to(paths.root)} "
+        f"figures_dir={paths.figures.relative_to(paths.root)}"
+    )
     predictions_path = paths.predictions / "predictions.parquet"
     if not predictions_path.is_file():
         raise EvaluationError(f"Missing predictions: {predictions_path}. Run `just train` first.")
@@ -203,6 +209,13 @@ def evaluate_predictions(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS
         raise EvaluationError(f"Predictions are missing required columns: {sorted(missing_columns)}")
 
     metrics = build_metrics_table(predictions)
+    split_counts = predictions["split"].value_counts().reindex(["train", "validation", "test"], fill_value=0).to_dict()
+    best_model = _best_model_from_metrics(metrics)
+    print(
+        "evaluate: predictions "
+        f"rows={len(predictions)} models={predictions['model_name'].nunique()} "
+        f"splits={split_counts} best_model={best_model}"
+    )
     metrics_json_path = paths.reports / "metrics.json"
     metrics_markdown_path = paths.reports / "metrics.md"
     metrics_json_path.parent.mkdir(parents=True, exist_ok=True)

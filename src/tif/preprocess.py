@@ -555,6 +555,11 @@ def preprocess_raw_sources(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PAT
     """Convert downloaded raw sources into processed model-ready tables."""
 
     tif.utils.ensure_generated_directories(paths)
+    print(
+        "preprocess: starting "
+        f"raw_dir={paths.raw_data.relative_to(paths.root)} "
+        f"processed_dir={paths.processed_data.relative_to(paths.root)}"
+    )
     cpi_raw_path = paths.raw_data / tif.utils.CBRT_CONSUMER_PRICES.raw_path
     if not cpi_raw_path.is_file():
         raise PreprocessError(f"Missing raw CPI source: {cpi_raw_path}. Run `just download` first.")
@@ -582,11 +587,27 @@ def preprocess_raw_sources(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PAT
     vocabulary_path = paths.processed_data / "text_vocabulary.json"
     split_summary_path = paths.processed_data / "split_summary.json"
     cpi_target = preprocess_cpi_target(cpi_raw_path, cpi_target_path)
+    print(f"preprocess: cpi_target rows={len(cpi_target)} path={cpi_target_path.relative_to(paths.root)}")
     numeric_series, monthly_numeric = preprocess_numeric_sources(
         paths.raw_data, numeric_series_path, monthly_numeric_path
     )
+    print(
+        "preprocess: numeric "
+        f"series_rows={len(numeric_series)} monthly_rows={len(monthly_numeric)} "
+        f"series_count={numeric_series['series_id'].nunique()}"
+    )
     text_documents = preprocess_text_documents(paths.raw_data, text_documents_path, text_sources)
+    print(
+        "preprocess: text "
+        f"documents={len(text_documents)} earliest={text_documents['published_at'].min()} "
+        f"latest={text_documents['published_at'].max()}"
+    )
     dataset, metadata, vocabulary, split_summary = build_model_dataset(cpi_target, monthly_numeric, text_documents)
+    print(
+        "preprocess: model_dataset "
+        f"rows={len(dataset)} numeric_features={len(metadata['numeric_feature_columns'])} "
+        f"vocabulary={len(vocabulary)} splits={split_summary}"
+    )
     dataset.to_parquet(dataset_path, index=False)
     _write_json(metadata_path, metadata)
     _write_json(vocabulary_path, vocabulary)

@@ -171,9 +171,14 @@ def download_registered_source(
 ) -> list[DownloadRecord]:
     """Download one registry source, including multi-file archive sources."""
 
+    print(f"download: source={source.source_id} type={source.source_type} url={source.url}")
     if source.source_type == "official_xml_month_end_archive":
-        return download_cbrt_fx_month_end(source, paths, timeout_seconds)
-    return [download_source(source, paths, timeout_seconds)]
+        records = download_cbrt_fx_month_end(source, paths, timeout_seconds)
+    else:
+        records = [download_source(source, paths, timeout_seconds)]
+    downloaded = sum(record.status == "downloaded" for record in records)
+    print(f"download: source={source.source_id} downloaded={downloaded}/{len(records)}")
+    return records
 
 
 def download_text_documents(
@@ -184,10 +189,12 @@ def download_text_documents(
 
     records = []
     for source in tif.utils.sources_by_category("text"):
+        print(f"download: discovering text documents source={source.source_id}")
         listing_path = paths.raw_data / source.raw_path
         if not listing_path.is_file():
             raise DownloadError(f"Missing text listing source before document download: {listing_path}")
         documents = tif.utils.extract_cbrt_text_links(listing_path.read_text(encoding="utf-8"), source)
+        print(f"download: source={source.source_id} discovered_documents={len(documents)}")
         for document in documents.itertuples(index=False):
             records.append(
                 download_url(
@@ -212,6 +219,7 @@ def download_sources(
     """Download all registered raw sources and write registry/manifest snapshots."""
 
     tif.utils.ensure_generated_directories(paths)
+    print(f"download: starting source_count={len(sources)} raw_dir={paths.raw_data.relative_to(paths.root)}")
     write_source_registry(paths)
     records = []
     for source in sources:
@@ -221,6 +229,9 @@ def download_sources(
         records.extend(download_text_documents(paths, timeout_seconds))
     write_manifest(records, paths)
     failed = [record for record in records if record.status != "downloaded"]
+    downloaded = len(records) - len(failed)
+    total_bytes = sum(record.bytes for record in records)
+    print(f"download: completed downloaded={downloaded} failed={len(failed)} bytes={total_bytes}")
     if failed:
         failed_ids = ", ".join(record.source_id for record in failed)
         raise DownloadError(f"Failed to download required sources: {failed_ids}")

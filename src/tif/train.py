@@ -278,6 +278,7 @@ def _move_batch(batch: dict[str, torch.Tensor], device: torch.device) -> dict[st
 
 
 def _train_torch_model(
+    model_name: str,
     model: nn.Module,
     tensor_dataset: ForecastTensorDataset,
     train_indices: list[int],
@@ -318,10 +319,11 @@ def _train_torch_model(
                     float(criterion(_model_output(model, batch, input_kind), batch["target"]).cpu())
                 )
         validation_loss = float(np.mean(validation_losses))
+        train_loss = float(np.mean(train_losses))
         history.append(
             {
                 "epoch": epoch,
-                "train_loss": float(np.mean(train_losses)),
+                "train_loss": train_loss,
                 "validation_loss": validation_loss,
             }
         )
@@ -331,6 +333,11 @@ def _train_torch_model(
             stale_epochs = 0
         else:
             stale_epochs += 1
+        print(
+            "train: epoch "
+            f"model={model_name} epoch={epoch}/{config.epochs} train_loss={train_loss:.6f} "
+            f"validation_loss={validation_loss:.6f} best_validation_loss={best_loss:.6f} stale_epochs={stale_epochs}"
+        )
         if stale_epochs >= config.patience:
             break
 
@@ -395,6 +402,7 @@ def train_models(
 
     tif.utils.ensure_generated_directories(paths)
     config = TrainingConfig.from_environment() if config is None else config
+    print(f"train: config={json.dumps(asdict(config), sort_keys=True)}")
     _set_seed(config.seed)
     dataset_path = paths.processed_data / "model_dataset.parquet"
     metadata_path = paths.processed_data / "feature_metadata.json"
@@ -413,6 +421,12 @@ def train_models(
     validation_indices = _split_indices(dataset, "validation")
     if not train_indices:
         raise TrainingError("Processed dataset does not contain training rows")
+    split_counts = dataset["split"].value_counts().reindex(["train", "validation", "test"], fill_value=0).to_dict()
+    print(
+        "train: dataset "
+        f"rows={len(dataset)} splits={split_counts} numeric_features={len(numeric_feature_columns)} "
+        f"vocabulary={len(vocabulary)} target_mean={float(target.mean()):.4f} target_std={float(target.std()):.4f}"
+    )
 
     scaler = StandardScaler()
     scaler.fit(dataset.loc[train_indices, numeric_feature_columns])
@@ -422,6 +436,10 @@ def train_models(
     numeric_sequence = _build_numeric_sequence(scaled_numeric_frame, sequence_variables, sequence_steps)
     token_ids = _pad_token_sequences(dataset["text_token_ids"], int(metadata["max_text_tokens"]))
     tensor_dataset = ForecastTensorDataset(numeric_scaled, numeric_sequence, token_ids, target)
+    print(
+        "train: tensors "
+        f"numeric_shape={numeric_scaled.shape} sequence_shape={numeric_sequence.shape} token_shape={token_ids.shape}"
+    )
 
     predictions = [
         _prediction_frame(dataset, "last_value", "baseline", dataset["cpi_mom_lag_1"].to_numpy(dtype=float)),
@@ -445,6 +463,7 @@ def train_models(
     ridge.fit(numeric_scaled[train_indices], target[train_indices])
     predictions.append(_prediction_frame(dataset, "ridge", "classical", ridge.predict(numeric_scaled)))
     model_summary["ridge"] = {"type": "classical", "status": "trained", "detail": "numeric features"}
+    print("train: model=ridge status=trained input=numeric_features")
 
     forest = RandomForestRegressor(
         n_estimators=config.random_forest_trees,
@@ -459,8 +478,10 @@ def train_models(
         "status": "trained",
         "detail": f"{config.random_forest_trees} trees",
     }
+    print(f"train: model=random_forest status=trained trees={config.random_forest_trees}")
 
     device = _resolve_device(config)
+    print(f"train: device={device}")
     torch_models: list[tuple[str, str, nn.Module, str]] = [
         ("numeric_mlp", "deep_numeric", NumericMLP(len(numeric_feature_columns)), "numeric"),
         ("numeric_gru", "deep_numeric", NumericGRU(len(sequence_variables)), "sequence"),
@@ -469,7 +490,7 @@ def train_models(
     ]
     for model_name, model_type, model, input_kind in torch_models:
         trained_model, history = _train_torch_model(
-            model, tensor_dataset, train_indices, validation_indices, input_kind, config, device
+            model_name, model, tensor_dataset, train_indices, validation_indices, input_kind, config, device
         )
         predictions.append(
             _prediction_frame(

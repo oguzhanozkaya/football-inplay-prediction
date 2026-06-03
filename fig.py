@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import random
 import re
 import subprocess
@@ -27,6 +28,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, log_loss
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
+os.environ["MPLBACKEND"] = "Agg"
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt  # noqa: E402
 
@@ -47,7 +49,7 @@ SEED = 67
 EPOCHS = 24000
 PATIENCE = 2400
 BATCH_SIZE = 1024
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.01
 WEIGHT_DECAY = 0.0001
 EARLY_STOPPING_MIN_DELTA = 0.001
 DEVICE = "cuda"

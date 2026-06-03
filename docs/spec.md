@@ -96,6 +96,8 @@ Current data foundation artifacts:
 | `output/predictions/predictions.*`       | `just train`      | Forecasts for all models and chronological splits                             |
 | `output/reports/metrics.*`               | `just evaluate`   | MAE, RMSE, direction accuracy, volatility-normalized MAE, and baseline deltas |
 | `output/figures/*.png`                   | `just evaluate`   | CPI, prediction, residual, and comparison figures                             |
+| `output/reports/*_summary.md`            | `just evaluate`   | Split, data, best-model, feature, and text-corpus summaries                   |
+| `output/reports/error_examples.md`       | `just evaluate`   | Largest forecast errors for the selected model                                |
 
 ## Usage
 

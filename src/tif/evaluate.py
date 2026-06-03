@@ -24,6 +24,7 @@ class EvaluationResult:
     metrics_markdown_path: Path
     metric_rows: int
     figure_paths: tuple[Path, ...]
+    report_paths: tuple[Path, ...]
 
 
 class EvaluationError(RuntimeError):
@@ -115,6 +116,12 @@ def _save_current_figure(path: Path) -> None:
     plt.close()
 
 
+def _write_markdown(path: Path, lines: list[str]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
 def _best_model_from_metrics(metrics: pd.DataFrame) -> str:
     validation = metrics[metrics["split"] == "validation"]
     if validation.empty:
@@ -200,7 +207,221 @@ def generate_plots(paths: tif.utils.ProjectPaths, predictions: pd.DataFrame, met
     _save_current_figure(path)
     figure_paths.append(path)
 
+    plt.figure(figsize=(7, 5.5))
+    plt.scatter(
+        model_predictions["actual_cpi_mom_percent"],
+        model_predictions["prediction_cpi_mom_percent"],
+        alpha=0.75,
+    )
+    axis_min = float(
+        min(model_predictions["actual_cpi_mom_percent"].min(), model_predictions["prediction_cpi_mom_percent"].min())
+    )
+    axis_max = float(
+        max(model_predictions["actual_cpi_mom_percent"].max(), model_predictions["prediction_cpi_mom_percent"].max())
+    )
+    plt.plot([axis_min, axis_max], [axis_min, axis_max], linestyle="--", color="black", linewidth=1)
+    plt.title(f"Predicted vs Actual CPI MoM ({best_model}, {plot_split})")
+    plt.xlabel("Actual CPI MoM (%)")
+    plt.ylabel("Predicted CPI MoM (%)")
+    path = paths.figures / "predicted_vs_actual_scatter.png"
+    _save_current_figure(path)
+    figure_paths.append(path)
+
+    model_predictions["absolute_error"] = residuals.abs()
+    model_predictions["rolling_mae_6"] = model_predictions["absolute_error"].rolling(6, min_periods=1).mean()
+    plt.figure(figsize=(10, 4.5))
+    plt.plot(model_predictions["target_month_start"], model_predictions["absolute_error"], label="Absolute error")
+    plt.plot(model_predictions["target_month_start"], model_predictions["rolling_mae_6"], label="6-month rolling MAE")
+    plt.title(f"Forecast Error Over Time ({best_model}, {plot_split})")
+    plt.xlabel("Target month")
+    plt.ylabel("Absolute error")
+    plt.legend()
+    path = paths.figures / "rolling_mae.png"
+    _save_current_figure(path)
+    figure_paths.append(path)
+
+    plt.figure(figsize=(10, 4.5))
+    plt.axhline(0.0, color="black", linewidth=1)
+    plt.plot(model_predictions["target_month_start"], residuals)
+    plt.title(f"Residuals Over Time ({best_model}, {plot_split})")
+    plt.xlabel("Target month")
+    plt.ylabel("Prediction error")
+    path = paths.figures / "residuals_over_time.png"
+    _save_current_figure(path)
+    figure_paths.append(path)
+
+    if "cpi_mom_trailing_std_12" in model_predictions.columns:
+        volatility = model_predictions["cpi_mom_trailing_std_12"].replace(0, np.nan)
+        model_predictions["volatility_normalized_abs_error"] = model_predictions["absolute_error"] / volatility
+        plt.figure(figsize=(10, 4.5))
+        plt.plot(
+            model_predictions["target_month_start"],
+            model_predictions["volatility_normalized_abs_error"],
+            label="Abs error / trailing std",
+        )
+        plt.title(f"Volatility-Normalized Error ({best_model}, {plot_split})")
+        plt.xlabel("Target month")
+        plt.ylabel("Normalized absolute error")
+        plt.legend()
+        path = paths.figures / "volatility_normalized_error.png"
+        _save_current_figure(path)
+        figure_paths.append(path)
+
+        plt.figure(figsize=(10, 4.5))
+        plt.plot(model_predictions["target_month_start"], model_predictions["actual_cpi_mom_percent"], label="Actual")
+        plt.plot(
+            model_predictions["target_month_start"],
+            model_predictions["prediction_cpi_mom_percent"],
+            label=f"Prediction ({best_model})",
+        )
+        plt.fill_between(
+            model_predictions["target_month_start"],
+            model_predictions["actual_cpi_mom_percent"] - model_predictions["cpi_mom_trailing_std_12"],
+            model_predictions["actual_cpi_mom_percent"] + model_predictions["cpi_mom_trailing_std_12"],
+            alpha=0.18,
+            label="Actual +/- trailing std",
+        )
+        plt.title(f"Prediction vs Actual With Trailing Volatility ({plot_split})")
+        plt.xlabel("Target month")
+        plt.ylabel("CPI MoM (%)")
+        plt.legend()
+        path = paths.figures / "prediction_with_volatility_band.png"
+        _save_current_figure(path)
+        figure_paths.append(path)
+
     return tuple(figure_paths)
+
+
+def write_summary_reports(
+    paths: tif.utils.ProjectPaths,
+    predictions: pd.DataFrame,
+    metrics: pd.DataFrame,
+) -> tuple[Path, ...]:
+    """Write human-readable evaluation and data summary reports."""
+
+    dataset = pd.read_parquet(paths.processed_data / "model_dataset.parquet")
+    metadata = json.loads((paths.processed_data / "feature_metadata.json").read_text(encoding="utf-8"))
+    text_documents = pd.read_parquet(paths.processed_data / "text_documents.parquet")
+    best_model = _best_model_from_metrics(metrics)
+    best_split = "test" if (predictions["split"] == "test").any() else "validation"
+    best_predictions = predictions[
+        (predictions["model_name"] == best_model) & (predictions["split"] == best_split)
+    ].copy()
+    best_predictions["absolute_error"] = (
+        best_predictions["prediction_cpi_mom_percent"] - best_predictions["actual_cpi_mom_percent"]
+    ).abs()
+    report_paths: list[Path] = []
+
+    split_counts = dataset["split"].value_counts().reindex(["train", "validation", "test"], fill_value=0)
+    report_paths.append(
+        _write_markdown(
+            paths.reports / "split_summary.md",
+            [
+                "# Split Summary",
+                "",
+                "| Split | Rows | First Origin | Last Origin |",
+                "| ----- | ---- | ------------ | ----------- |",
+                *[
+                    f"| {split} | {count} | "
+                    f"{dataset.loc[dataset['split'] == split, 'forecast_origin_month'].min()} | "
+                    f"{dataset.loc[dataset['split'] == split, 'forecast_origin_month'].max()} |"
+                    for split, count in split_counts.items()
+                ],
+            ],
+        )
+    )
+
+    numeric_columns = list(metadata["numeric_feature_columns"])
+    vocabulary_size = len(json.loads((paths.processed_data / "text_vocabulary.json").read_text(encoding="utf-8")))
+    first_origin = dataset["forecast_origin_month"].min()
+    last_origin = dataset["forecast_origin_month"].max()
+    report_paths.append(
+        _write_markdown(
+            paths.reports / "data_summary.md",
+            [
+                "# Data Summary",
+                "",
+                f"Rows: `{len(dataset)}`",
+                f"Forecast origins: `{first_origin}` to `{last_origin}`",
+                f"Target months: `{dataset['target_month'].min()}` to `{dataset['target_month'].max()}`",
+                f"Numeric features: `{len(numeric_columns)}`",
+                f"Vocabulary size: `{vocabulary_size}`",
+                f"Text documents: `{len(text_documents)}`",
+            ],
+        )
+    )
+
+    best_metric_rows = metrics[metrics["model_name"] == best_model].sort_values("split")
+    report_paths.append(
+        _write_markdown(
+            paths.reports / "best_model_summary.md",
+            [
+                "# Best Model Summary",
+                "",
+                f"Best model selected by validation MAE: `{best_model}`",
+                "",
+                "| Split | MAE | RMSE | Direction Accuracy |",
+                "| ----- | --- | ---- | ------------------ |",
+                *[
+                    f"| {row.split} | {row.mae:.4f} | {row.rmse:.4f} | {row.direction_accuracy:.3f} |"
+                    for row in best_metric_rows.itertuples(index=False)
+                ],
+            ],
+        )
+    )
+
+    worst = best_predictions.sort_values("absolute_error", ascending=False).head(10)
+    report_paths.append(
+        _write_markdown(
+            paths.reports / "error_examples.md",
+            [
+                "# Largest Forecast Errors",
+                "",
+                f"Model: `{best_model}`; split: `{best_split}`",
+                "",
+                "| Target Month | Actual | Prediction | Abs Error |",
+                "| ------------ | ------ | ---------- | --------- |",
+                *[
+                    f"| {row.target_month} | {row.actual_cpi_mom_percent:.4f} | "
+                    f"{row.prediction_cpi_mom_percent:.4f} | {row.absolute_error:.4f} |"
+                    for row in worst.itertuples(index=False)
+                ],
+            ],
+        )
+    )
+
+    coverage = dataset[numeric_columns].notna().mean().sort_values()
+    report_paths.append(
+        _write_markdown(
+            paths.reports / "feature_summary.md",
+            [
+                "# Feature Summary",
+                "",
+                f"Numeric feature count: `{len(numeric_columns)}`",
+                "",
+                "| Lowest-Coverage Feature | Coverage |",
+                "| ----------------------- | -------- |",
+                *[f"| `{feature}` | {value:.3f} |" for feature, value in coverage.head(15).items()],
+            ],
+        )
+    )
+
+    report_paths.append(
+        _write_markdown(
+            paths.reports / "text_corpus_summary.md",
+            [
+                "# Text Corpus Summary",
+                "",
+                f"Documents: `{len(text_documents)}`",
+                f"First publication: `{text_documents['published_at'].min()}`",
+                f"Last publication: `{text_documents['published_at'].max()}`",
+                f"Median body words: `{text_documents['body_word_count'].median():.0f}`",
+                f"Mean body words: `{text_documents['body_word_count'].mean():.1f}`",
+            ],
+        )
+    )
+
+    return tuple(report_paths)
 
 
 def evaluate_predictions(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS) -> EvaluationResult:
@@ -242,12 +463,14 @@ def evaluate_predictions(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS
     metrics_json_path.parent.mkdir(parents=True, exist_ok=True)
     metrics_json_path.write_text(json.dumps(metrics.to_dict(orient="records"), indent=2), encoding="utf-8")
     _write_metrics_markdown(metrics_markdown_path, metrics)
+    report_paths = write_summary_reports(paths, predictions, metrics)
     figure_paths = generate_plots(paths, predictions, metrics)
     return EvaluationResult(
         metrics_json_path=metrics_json_path,
         metrics_markdown_path=metrics_markdown_path,
         metric_rows=len(metrics),
         figure_paths=figure_paths,
+        report_paths=report_paths,
     )
 
 
@@ -267,4 +490,7 @@ def main() -> int:
     print(f"evaluate: wrote {len(result.figure_paths)} figures")
     for figure_path in result.figure_paths:
         print(f"evaluate: wrote {figure_path.relative_to(tif.utils.DEFAULT_PATHS.root)}")
+    print(f"evaluate: wrote {len(result.report_paths)} summary reports")
+    for report_path in result.report_paths:
+        print(f"evaluate: wrote {report_path.relative_to(tif.utils.DEFAULT_PATHS.root)}")
     return 0

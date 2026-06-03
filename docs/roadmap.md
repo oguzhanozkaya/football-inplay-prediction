@@ -107,7 +107,7 @@ The repository now contains the full command pipeline. The remaining project wor
 - `data/processed/monthly_numeric.parquet` includes the monthly numeric feature base with FX, Brent oil, industrial production, and unemployment columns.
 - `data/processed/text_documents.parquet` includes document metadata, publication dates, clean body text, and body length counts.
 - `just train` trains last-value and rolling baselines, Ridge, Random Forest, numeric MLP, numeric GRU, TextCNN, and fusion models.
-- `just evaluate` writes JSON/Markdown metrics and CPI history, feature coverage, prediction, residual, and model-comparison figures.
+- `just evaluate` writes JSON/Markdown metrics, split/data/best-model/feature/text summaries, largest-error examples, and CPI history, feature coverage, prediction, residual, scatter, rolling-error, volatility-normalized, and model-comparison figures.
 - Tests cover CPI target alignment, source registry integrity, manifest writing, official text metadata extraction, body extraction, FX parsing, FRED CSV parsing, monthly numeric aggregation, chronological feature construction, and evaluation metrics.
 
 ## Limitations

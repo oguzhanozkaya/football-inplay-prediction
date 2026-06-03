@@ -14,7 +14,7 @@ hide:
 </h3>
 
 <h3 align="center" style="margin: 1em;">
-    <a href="https://github.com/niri-wm/niri/discussions/325">Web Page and Documentation</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Presentation</a>
+    <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Presentation</a>
 </h3>
 
 ---

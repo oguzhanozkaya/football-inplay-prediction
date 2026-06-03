@@ -3,29 +3,27 @@ requires = ["uv_build>=0.11.15,<0.12"]
 build-backend = "uv_build"
 
 [project]
-name = "turkish-inflation-forecasting"
+name = "football-inplay-prediction"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "beautifulsoup4>=4.14.3",
     "matplotlib>=3.10.8",
     "numpy>=2.3.5",
     "pandas>=2.3.3",
     "pyarrow>=22.0.0",
-    "requests>=2.32.5",
     "scikit-learn>=1.7.2",
     "torch>=2.9.1",
 ]
 
 [tool.uv.build-backend]
-module-name = "tif"
+module-name = "fip"
 module-root = "src"
 
 [project.scripts]
-tif-download = "tif.download:main"
-tif-preprocess = "tif.preprocess:main"
-tif-train = "tif.train:main"
-tif-evaluate = "tif.evaluate:main"
+fip-download = "fip.download:main"
+fip-preprocess = "fip.preprocess:main"
+fip-train = "fip.train:main"
+fip-evaluate = "fip.evaluate:main"
 
 [dependency-groups]
 dev = [

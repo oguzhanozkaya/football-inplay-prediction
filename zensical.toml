@@ -1,10 +1,10 @@
 [project]
-site_name = "Turkish Inflation Forecasting"
-site_description = "Forecasting Turkish inflation using deep learning."
+site_name = "Football In-Play Prediction"
+site_description = "Predicting football match outcomes at minute 45 using ESPN event streams."
 site_author = "Oğuzhan Özkaya"
-site_url = "https://oguzhanozkaya.github.io/turkish-inflation-forecasting/"
-repo_url = "https://github.com/oguzhanozkaya/turkish-inflation-forecasting"
-repo_name = "turkish-inflation-forecasting"
+site_url = "https://oguzhanozkaya.github.io/football-inplay-prediction/"
+repo_url = "https://github.com/oguzhanozkaya/football-inplay-prediction"
+repo_name = "football-inplay-prediction"
 copyright = "ADA 447 Introduction to Deep Learning - TED University"
 
 docs_dir = "docs"

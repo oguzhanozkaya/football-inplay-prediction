@@ -6,174 +6,130 @@ description: System Architecture.
 
 ## Design Principles
 
-- Reproducibility comes before convenience. Data should be downloaded, processed, trained, and evaluated from commands.
-- The target is CPI month-over-month inflation only.
-- Time order must be preserved. Random train/test splits are not valid for this project.
-- Feature availability must respect publication dates and forecast cutoffs.
+- Reproducibility comes before convenience. Data validation, preprocessing, training, and evaluation are command-driven.
+- The target is final match outcome: home win, draw, or away win.
+- The forecast origin is minute 45.
+- No event, key event, commentary, or unsafe lineup information after minute 45 may enter model inputs.
 - Deep learning models are implemented with raw PyTorch.
-- Text models are trained from scratch. No external pretrained language model, pretrained embedding, or language model API is used.
-- The project should include simple baselines before deep models so improvements can be measured honestly.
+- Text embeddings are trained from scratch. No external pretrained language model, pretrained embedding, or language model API is used.
+- The first model trains one architecture only, so there are no separate numeric-only, text-only, Ridge, or Random Forest training paths.
 
 ## Decisions
 
-| Area               | Decision                                                      |
-| ------------------ | ------------------------------------------------------------- |
-| Python package     | `src/tif/`                                                    |
-| Target             | Next-month CPI MoM                                            |
-| Modeling framework | Raw PyTorch for deep learning                                 |
-| Baselines          | Naive, rolling mean, and classical machine learning models    |
-| Text objective     | Inflation-pressure representation, not generic sentiment      |
-| Validation         | Chronological split and rolling-origin backtesting            |
-| Data storage       | Generated datasets under `data/`, source-controlled code only |
-| Command interface  | `just` recipes wrapping stage-specific console entrypoints    |
+| Area               | Decision                                                       |
+| ------------------ | -------------------------------------------------------------- |
+| Python package     | `src/fip/`                                                     |
+| Dataset            | Local Kaggle ESPN Soccer dataset under `data/raw/`             |
+| Forecast origin    | Minute 45                                                      |
+| Target             | Final result: `home`, `draw`, `away`                           |
+| Modeling framework | Raw PyTorch                                                    |
+| Architecture       | TextCNN per window plus numeric projection plus GRU classifier |
+| Validation         | Chronological train, validation, and test split                |
+| Command interface  | `just` recipes wrapping stage-specific console entrypoints     |
 
 ## Data Flow
 
 ```mermaid
 flowchart LR
-    A[Official Numeric Sources] --> C[Download]
-    B[Text Sources] --> C
-    C --> D[data/raw]
-    D --> E[Preprocess]
-    E --> F[data/processed]
-    F --> G[Monthly Alignment]
-    G --> H[Feature Generation]
-    H --> I[data/processed]
-    I --> J[Training]
-    J --> K[Evaluation]
+    A[data/raw/base_data] --> D[Download Validation]
+    B[data/raw/plays, keyEvents, commentary] --> D
+    C[data/raw/lineup_data] --> D
+    D --> E[source manifests]
+    A --> F[Preprocess]
+    B --> F
+    C --> F
+    F --> G[data/processed/model_dataset.parquet]
+    G --> H[Train Fusion GRU]
+    H --> I[output/models/fusion_gru.pt]
+    H --> J[output/predictions]
+    J --> K[Evaluate]
     K --> L[output/reports]
     K --> M[output/figures]
-    K --> N[output/predictions]
 ```
 
-The data pipeline has three core responsibilities:
+The pipeline has three core responsibilities:
 
-1. Preserve raw source files for auditability.
-2. Convert all sources into a consistent monthly forecast table.
-3. Prevent future information from entering features for an earlier forecast origin.
+1. Validate local raw ESPN files and write an auditable manifest.
+2. Convert event streams into leakage-safe minute-45 match sequences.
+3. Train and evaluate one hybrid classifier.
 
-## Forecasting Timeline
-
-```mermaid
-gantt
-    title Forecast origin and target month
-    dateFormat YYYY-MM-DD
-    axisFormat %Y-%m
-    section Observed History
-    Available features up to month t :done, hist, 2024-01-01, 2024-01-31
-    section Forecast
-    Forecast made at end of month t :milestone, f, 2024-01-31, 0d
-    Target CPI MoM for month t+1 :active, target, 2024-02-01, 2024-02-29
-```
-
-For a target month `t + 1`, every numeric feature and text document must be available no later than the forecast origin. If a source has a publication delay, the delay must be modeled explicitly.
-
-## Pipeline
-
-### Numeric Branch
+## Sequence Construction
 
 ```mermaid
 flowchart LR
-    A[Monthly Numeric Table] --> B[Lag Features]
-    B --> C[Rolling Features]
-    C --> D[Scaling]
-    D --> E[Windowed Tensor]
-    E --> F[1D CNN / GRU / LSTM / Transformer Encoder]
-    F --> G[Numeric Representation]
+    A[Match Events] --> B[Filter <= 45]
+    C[Commentary Text] --> B
+    D[Safe Lineups] --> B
+    B --> E[5-Minute Windows]
+    E --> F[Text Windows]
+    E --> G[Numeric Windows]
+    F --> H[Token IDs]
+    G --> I[Numeric Sequence]
+    H --> J[Model Dataset]
+    I --> J
 ```
 
-The numeric branch models macro-financial time series.
+The default cutoff and window size create 9 sequence steps.
 
-The current numeric foundation normalizes official CBRT CPI and FX data with public FRED macro-financial series before monthly alignment. Daily series such as Brent oil are aggregated to monthly average and month-end values. Monthly series are kept at their reported month and later feature generation must apply lag and cutoff rules before model training.
+| Window | Minute Range |
+| ------ | ------------ |
+| 0      | `0-5`        |
+| 1      | `5-10`       |
+| 2      | `10-15`      |
+| 3      | `15-20`      |
+| 4      | `20-25`      |
+| 5      | `25-30`      |
+| 6      | `30-35`      |
+| 7      | `35-40`      |
+| 8      | `40-45`      |
 
-Feature generation uses conservative availability rules:
+## Feature Rules
 
-| Feature Group      | Availability Rule                                                     |
-| ------------------ | --------------------------------------------------------------------- |
-| CPI history        | CPI MoM and YoY are used from month `t - 1` and earlier               |
-| Market data        | FX and Brent features can use month `t` values at the forecast cutoff |
-| Delayed macro data | Industrial production and unemployment use month `t - 2` and earlier  |
-| Text documents     | Documents are included only when published by the end of month `t`    |
+| Source       | Rule                                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Fixtures     | Final scores are used only to build labels, never as inputs.                                                          |
+| Plays        | Include first-half play rows with parsed clock at or before minute 45.                                                |
+| Key events   | Include first-half key-event rows with parsed clock at or before minute 45.                                           |
+| Commentary   | Include commentary rows with parsed clock at or before minute 45; missing clocks are treated as pre-match/early text. |
+| Lineups      | Use safe formation and starter metadata; do not use winner fields or post-cutoff substitutions.                       |
+| Team stats   | Excluded because the table represents full-match statistics.                                                          |
+| Player stats | Excluded until explicit lagging is implemented.                                                                       |
+| Standings    | Excluded until scrape-time snapshots are converted into safe pre-match features.                                      |
 
-The processed dataset includes `cpi_mom_trailing_std_12`, the leakage-safe 12-month trailing standard deviation of CPI MoM computed from month `t - 1` and earlier. Evaluation carries this column into prediction outputs and reports volatility-normalized MAE when the column is available.
-
-Candidate architectures are:
-
-| Model               | Purpose                                            |
-| ------------------- | -------------------------------------------------- |
-| MLP                 | Tabular deep learning baseline                     |
-| 1D CNN              | Local temporal pattern extraction                  |
-| MLP                 | Implemented tabular numeric deep learning baseline |
-| GRU                 | Implemented lag-structured numeric sequence model  |
-| 1D CNN              | Candidate future numeric sequence model            |
-| Transformer encoder | Candidate future attention-based experiment        |
-
-### Text Branch
+## Model
 
 ```mermaid
 flowchart LR
-    A[Documents Before Cutoff] --> B[Cleaning]
-    B --> C[Tokenizer Trained On Project Corpus]
-    C --> D[Token IDs]
-    D --> E[Embedding Layer From Scratch]
-    E --> F[TextCNN / BiGRU / Transformer Encoder]
-    F --> G[Inflation-Pressure Representation]
+    A[Token Windows] --> B[Embedding From Scratch]
+    B --> C[TextCNN Per Window]
+    D[Numeric Windows] --> E[Numeric Projection Per Window]
+    C --> F[Concatenate]
+    E --> F
+    F --> G[Fusion Projection]
+    G --> H[GRU Across Match Windows]
+    H --> I[Home/Draw/Away Logits]
 ```
 
-The text branch learns whether text indicates upward or downward inflation pressure. It should not be framed as generic positive or negative sentiment. The learned text representation is used as an input to the final forecast model.
+The model is `FusionGRUClassifier` in `src/fip/train.py`.
 
-Valid text architectures for this project are:
+For every 5-minute window:
 
-| Model               | Purpose                                             |
-| ------------------- | --------------------------------------------------- |
-| TextCNN             | Implemented local phrase and n-gram pattern capture |
-| BiGRU or BiLSTM     | Candidate sequential text representation            |
-| Transformer encoder | Candidate attention-based text representation       |
+- the text branch embeds token IDs and applies several 1D convolution kernels;
+- the numeric branch projects the numeric event vector;
+- both representations are concatenated and projected into a fused window vector.
 
-### Fusion Model
-
-```mermaid
-flowchart LR
-    A[Numeric Representation] --> C[Concatenate]
-    B[Text Representation] --> C
-    C --> D[Fusion MLP]
-    D --> E[Next-Month CPI MoM Forecast]
-```
-
-The fusion model combines numeric and text representations and predicts the CPI MoM value for the next month.
-
-The implemented fusion model concatenates an MLP numeric representation with a TextCNN representation and feeds the result through a small regression head.
-
-### Baselines
-
-Baselines are required to make the deep learning results meaningful.
-
-| Baseline         | Role                                          |
-| ---------------- | --------------------------------------------- |
-| Last value       | Forecast next CPI MoM as the previous CPI MoM |
-| Rolling average  | Smooth recent CPI MoM history                 |
-| Ridge regression | Linear macro-financial benchmark              |
-| Random forest    | Nonlinear classical benchmark                 |
+The GRU reads the 9 fused window vectors and the final hidden state feeds a three-class classifier.
 
 ## Evaluation
 
-Evaluation must use chronological splits and optionally rolling-origin backtesting.
+Evaluation uses chronological splits and reports classification quality.
 
-| Metric             | Purpose                                      |
-| ------------------ | -------------------------------------------- |
-| MAE                | Main interpretable error metric              |
-| RMSE               | Penalizes large forecast misses              |
-| Direction accuracy | Measures whether inflation movement is right |
-| Baseline delta     | Compares deep models against simple models   |
+| Metric                        | Purpose                                            |
+| ----------------------------- | -------------------------------------------------- |
+| Accuracy                      | Overall correct final-result predictions           |
+| Macro F1                      | Class-balanced quality across home, draw, and away |
+| Log loss                      | Probability quality and confidence penalty         |
+| Per-class precision/recall/F1 | Class-specific behavior                            |
+| Confusion matrix              | Error structure across outcome classes             |
 
-The test period must stay untouched until the final model comparison.
-
-## Interpretability
-
-The project should include model inspection that is practical for the architecture used:
-
-| Component | Interpretability Method                                             |
-| --------- | ------------------------------------------------------------------- |
-| Numeric   | Permutation importance, ablation, lag contribution analysis         |
-| Text      | Token saliency, document contribution, attention inspection if used |
-| Fusion    | Numeric-only vs text-only vs combined model ablation                |
+The test split should be reviewed only after the selected training run is complete.

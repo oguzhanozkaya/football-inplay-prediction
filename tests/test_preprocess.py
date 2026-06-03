@@ -2,126 +2,79 @@ from pathlib import Path
 
 import pandas as pd
 
-import tif.preprocess
-import tif.utils
+import fip.preprocess
+import fip.utils
 
 
-def write_required_numeric_sources(paths) -> None:
-    months = pd.date_range("2024-01-01", "2026-04-01", freq="MS")
-    for index, month_start in enumerate(months):
-        month_end = month_start + pd.offsets.MonthEnd(0)
-        fx_path = (
-            paths.raw_data / tif.utils.CBRT_FX_MONTH_END.raw_path / f"{month_end:%Y%m}" / f"{month_end:%d%m%Y}.xml"
-        )
-        fx_path.parent.mkdir(parents=True, exist_ok=True)
-        fx_path.write_text(
-            f"""
-            <Tarih_Date Tarih="{month_end:%d.%m.%Y}" Date="{month_end:%d.%m.%Y}">
-              <Currency Kod="USD" CurrencyCode="USD">
-                <Unit>1</Unit><ForexBuying>{30 + index:.4f}</ForexBuying><ForexSelling>{31 + index:.4f}</ForexSelling>
-              </Currency>
-              <Currency Kod="EUR" CurrencyCode="EUR">
-                <Unit>1</Unit><ForexBuying>{35 + index:.4f}</ForexBuying><ForexSelling>{36 + index:.4f}</ForexSelling>
-              </Currency>
-            </Tarih_Date>
-            """,
-            encoding="utf-8",
-        )
-
-    fred_sources = {
-        tif.utils.FRED_BRENT_OIL: "DCOILBRENTEU",
-        tif.utils.FRED_TURKEY_INDUSTRIAL_PRODUCTION: "TURPRINTO01GYSAM",
-        tif.utils.FRED_TURKEY_UNEMPLOYMENT_RATE: "LRHUTTTTTRM156S",
-    }
-    for source, column in fred_sources.items():
-        raw_path = paths.raw_data / source.raw_path
-        raw_path.parent.mkdir(parents=True, exist_ok=True)
-        rows = [f"observation_date,{column}"]
-        for index, month_start in enumerate(months):
-            rows.append(f"{month_start:%Y-%m-%d},{10 + index:.2f}")
-        content = "\n".join(rows) + "\n"
-        raw_path.write_text(content, encoding="utf-8")
-
-
-def test_parse_cpi_fred_fx_and_monthly_numeric() -> None:
-    cpi = tif.preprocess.parse_cbrt_consumer_prices_html("02-2026 31.53 2.96 01-2026 30.65 4.84")
-    target = tif.preprocess.build_cpi_target_table(cpi)
-    fred = tif.preprocess.parse_fred_csv(
-        "observation_date,DCOILBRENTEU\n2024-04-29,88.4\n2024-04-30,.\n2024-05-01,83.1\n",
-        tif.utils.FRED_BRENT_OIL.source_id,
-    )
-    fx = tif.preprocess.parse_cbrt_fx_xml(
-        b"""
-        <Tarih_Date Tarih="30.04.2024" Date="30.04.2024">
-          <Currency Kod="USD" CurrencyCode="USD"><Unit>1</Unit><ForexSelling>32.4000</ForexSelling></Currency>
-          <Currency Kod="EUR" CurrencyCode="EUR"><Unit>1</Unit><ForexSelling>34.9000</ForexSelling></Currency>
-        </Tarih_Date>
-        """
-    )
-    monthly = tif.preprocess.build_monthly_numeric(fred)
-
-    assert target["forecast_origin_month"].tolist() == ["2025-12", "2026-01"]
-    assert fred["date"].tolist() == [pd.Timestamp("2024-04-29"), pd.Timestamp("2024-05-01")]
-    assert set(fx["currency"]) == {"USD", "EUR"}
-    assert monthly.loc[0, "brent_oil_usd_month_avg"] == 88.4
-
-
-def test_preprocess_raw_sources_writes_processed_tables(tmp_path: Path) -> None:
-    paths = tif.utils.build_paths(tmp_path)
-    paths.raw_data.mkdir(parents=True)
-    cpi_path = paths.raw_data / tif.utils.CBRT_CONSUMER_PRICES.raw_path
-    cpi_path.parent.mkdir(parents=True)
-    cpi_months = pd.date_range("2024-01-01", "2026-04-01", freq="MS")
-    cpi_path.write_text(
-        " ".join(f"{month:%m-%Y} {30 + index:.2f} {1 + index / 100:.2f}" for index, month in enumerate(cpi_months)),
+def write_fixture_raw_data(paths: fip.utils.ProjectPaths) -> None:
+    for directory in ["base_data", "plays_data", "keyEvents_data", "commentary_data", "lineup_data"]:
+        (paths.raw_data / directory).mkdir(parents=True, exist_ok=True)
+    (paths.raw_data / "base_data" / "fixtures.csv").write_text(
+        "seasonType,leagueId,eventId,date,venueId,homeTeamId,awayTeamId,homeTeamScore,awayTeamScore,statusId\n"
+        "1,10,100,2024-01-01 12:00:00,1,1,2,2,1,28\n"
+        "1,10,101,2024-01-02 12:00:00,1,3,4,1,1,28\n"
+        "1,10,102,2024-01-03 12:00:00,1,5,6,0,2,28\n"
+        "1,10,103,2024-01-04 12:00:00,1,7,8,3,0,28\n",
         encoding="utf-8",
     )
-    write_required_numeric_sources(paths)
+    (paths.raw_data / "base_data" / "leagues.csv").write_text(
+        "seasonType,year,seasonName,seasonSlug,leagueId,midsizeName,leagueName,leagueShortName\n"
+        "1,2024,Season,regular,10,TEST.1,Test League,Test\n",
+        encoding="utf-8",
+    )
+    (paths.raw_data / "plays_data" / "plays_test.csv").write_text(
+        "seasonType,eventId,typeId,text,shortText,period,clockValue,clockDisplayValue,teamId,scoringPlay,goalPositionX,goalPositionY,fieldpositionX,fieldPositionY,fieldPosition2X,fieldPosition2Y\n"
+        "1,100,70,Home scores,Goal,1,600,10',1,1,0,0,0.4,0.5,0.0,0.0\n"
+        "1,100,66,Late foul after cutoff,Foul,2,3600,60',2,0,0,0,0.1,0.2,0.0,0.0\n"
+        "1,101,68,Away attack,Attack,1,1200,20',4,0,0,0,0.6,0.2,0.0,0.0\n"
+        "1,102,70,Away scores,Goal,1,1800,30',6,1,0,0,0.8,0.7,0.0,0.0\n"
+        "1,103,70,Home early shot,Shot,1,300,5',7,0,0,0,0.3,0.4,0.0,0.0\n",
+        encoding="utf-8",
+    )
+    (paths.raw_data / "keyEvents_data" / "keyEvents_test.csv").write_text(
+        "seasonType,eventId,keyEventTypeId,period,clockValue,clockDisplayValue,scoringPlay,keyEventText,keyEventShortText,teamId,goalPositionX,goalPositionY,fieldPositionX,fieldPositionY,fieldPosition2X,fieldPosition2Y\n"
+        "1,100,94,1,900,15',0,Yellow card,Yellow,1,0,0,0.2,0.2,0.0,0.0\n",
+        encoding="utf-8",
+    )
+    (paths.raw_data / "commentary_data" / "commentary_test.csv").write_text(
+        "seasonType,eventId,clockDisplayValue,commentaryText\n"
+        "1,100,11',Dangerous home pressure before halftime.\n"
+        "1,100,55',This must not enter the minute forty five sample.\n"
+        "1,101,20',Away side controls the ball.\n"
+        "1,102,30',Counter attack and goal.\n"
+        "1,103,5',Home side starts fast.\n",
+        encoding="utf-8",
+    )
+    (paths.raw_data / "lineup_data" / "lineup_test.csv").write_text(
+        "eventId,teamId,homeAway,formation,starter,position,formationPlace\n"
+        "100,1,home,4-3-3,1,Forward,1\n"
+        "100,2,away,4-4-2,1,Defender,1\n",
+        encoding="utf-8",
+    )
 
-    for source in tif.utils.sources_by_category("text"):
-        raw_path = paths.raw_data / source.raw_path
-        raw_path.parent.mkdir(parents=True, exist_ok=True)
-        source_url_path = source.url.split("/MPC/")[-1].replace("%2B", "+")
-        raw_path.write_text(
-            f'<a href="/wps/wcm/connect/EN/TCMB+EN/MPC/{source_url_path}/ANO2026-17">Document (2026-17)</a>',
-            encoding="utf-8",
-        )
-        document_path = paths.raw_data / tif.utils.raw_document_path(f"{source.source_id}_ano2026-17")
-        document_path.parent.mkdir(parents=True, exist_ok=True)
-        document_path.write_text(
-            """
-            <div id="tcmbMainContent">
-              <div class="tcmb-content type-prg">
-                <p>April 22, 2024</p>
-                <p>The tight monetary policy stance will strengthen the disinflation process.</p>
-              </div>
-            </div>
-            """,
-            encoding="utf-8",
-        )
 
-    result = tif.preprocess.preprocess_raw_sources(paths)
+def test_clock_to_minute_parses_display_values() -> None:
+    assert fip.preprocess.clock_to_minute("45'+2'") == 47
+    assert fip.preprocess.clock_to_minute("18'") == 18
+    assert fip.preprocess.clock_to_minute(600) == 10
 
-    assert result.cpi_target_rows == 28
-    assert result.numeric_series_rows == 168
-    assert result.monthly_numeric_rows == 28
-    assert result.text_document_rows == 2
-    assert result.model_rows > 0
+
+def test_preprocess_raw_sources_writes_leakage_safe_dataset(tmp_path: Path) -> None:
+    paths = fip.utils.build_paths(tmp_path)
+    write_fixture_raw_data(paths)
+
+    result = fip.preprocess.preprocess_raw_sources(paths)
+
+    dataset = pd.read_parquet(result.dataset_path)
+    assert result.fixture_rows == 4
+    assert result.model_rows == 4
     assert result.numeric_feature_count > 0
     assert result.vocabulary_size > 2
-    assert result.cpi_target_path.is_file()
-    assert result.numeric_series_path.is_file()
-    assert result.monthly_numeric_path.is_file()
-    assert result.text_documents_path.is_file()
+    assert result.fixtures_path.is_file()
     assert result.dataset_path.is_file()
     assert result.metadata_path.is_file()
     assert result.vocabulary_path.is_file()
-    assert result.split_summary_path.is_file()
-    assert result.dataset_path.parent == paths.processed_data
-
-    text_documents = pd.read_parquet(result.text_documents_path)
-    dataset = pd.read_parquet(result.dataset_path)
-    assert text_documents["body_text"].str.contains("disinflation process").all()
-    assert text_documents["published_at"].notna().all()
-    assert "cpi_mom_trailing_std_12" in dataset.columns
-    assert dataset["cpi_mom_trailing_std_12"].notna().all()
+    assert dataset.loc[dataset["eventId"] == 100, "target_label"].iloc[0] == "home"
+    assert "must not enter" not in " ".join(dataset.loc[dataset["eventId"] == 100, "text_windows"].iloc[0])
+    assert len(dataset.loc[0, "numeric_sequence"]) == fip.utils.window_count()
+    assert len(dataset.loc[0, "token_windows"]) == fip.utils.window_count()

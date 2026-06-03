@@ -1,24 +1,26 @@
-# Turkish Inflation Forecasting with Numeric and Text Signals
+# Football In-Play Prediction with Text and Event Sequences
 
 ## Abstract
 
-This project forecasts next-month Turkish CPI month-over-month inflation using a reproducible deep learning pipeline. Each forecast is made at the end of month `t` for CPI MoM in month `t + 1`. The pipeline combines macro-financial features with official central-bank text documents while enforcing chronological splits and feature cutoff rules. Models include simple baselines, classical machine-learning baselines, raw PyTorch numeric and text models, and a numeric-text fusion model.
+This project predicts the final outcome of a football match at minute 45 using a reproducible deep learning pipeline. The target is a three-class result: home win, draw, or away win. The model combines ESPN soccer commentary text with numerical event-stream features while enforcing a strict cutoff: no play, key event, commentary, or unsafe lineup information after minute 45 can enter the input.
 
 Final result placeholders in this article should be filled after the extended training run.
 
 ## Problem Definition
 
-The target is CPI MoM inflation. CPI YoY is used only as a lagged contextual feature, not as the forecast target. For every row, the model observes only data available by the forecast origin month.
+Each row represents one completed match. The model observes information available through minute 45 and predicts the final result. This creates an in-play forecasting task rather than a pre-match prediction task.
 
 ## Data
 
-Numeric data is downloaded from public reproducible sources:
+Raw data comes from the local ESPN Soccer dataset under `data/raw/`:
 
-- CBRT Consumer Prices page for CPI MoM and CPI YoY.
-- CBRT public exchange-rate XML archive for month-end USD/TRY and EUR/TRY.
-- FRED public CSV files for Brent crude oil, Turkish industrial production growth, and Turkish unemployment.
+- `base_data/fixtures.csv` for dates, teams, final scores, status, and labels.
+- `plays_data/*.csv` for play-by-play events, clocks, text, scoring flags, teams, and coordinates.
+- `keyEvents_data/*.csv` for important match events and event text.
+- `commentary_data/*.csv` for minute-by-minute commentary.
+- `lineup_data/*.csv` for safe formation and starter metadata.
 
-Text data comes from official CBRT MPC meeting decisions and meeting summaries. Documents are included in a forecast row only when their publication date is no later than the end of the forecast origin month.
+Full-match team statistics, scrape-time standings, and season player aggregates are excluded from the first model to avoid leakage.
 
 ## Feature Engineering
 
@@ -26,63 +28,56 @@ The processed dataset is written by `just preprocess` to `data/processed/model_d
 
 Feature availability rules are conservative:
 
-| Feature Group                          | Rule                                            |
-| -------------------------------------- | ----------------------------------------------- |
-| CPI history                            | Use month `t - 1` and earlier                   |
-| FX and Brent                           | Use month `t` and earlier                       |
-| Industrial production and unemployment | Use month `t - 2` and earlier                   |
-| Text documents                         | Use documents published by the end of month `t` |
+| Source     | Rule                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| Fixtures   | Final scores are used only for labels.                                                       |
+| Plays      | Use first-half rows with parsed clock at or before minute 45.                                |
+| Key events | Use first-half rows with parsed clock at or before minute 45.                                |
+| Commentary | Use rows with parsed clock at or before minute 45; missing clocks are treated as early text. |
+| Lineups    | Use formation and starter metadata; exclude winner fields and post-cutoff substitutions.     |
 
-The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
+Each match is sliced into 9 five-minute windows from `0-5` through `40-45`. The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
 
-## Models
+## Model
 
-The implemented model set is:
+Only one architecture is trained: `FusionGRUClassifier`.
 
-| Model         | Description                                                    |
-| ------------- | -------------------------------------------------------------- |
-| Last value    | Forecasts next CPI MoM as the latest available CPI MoM         |
-| Rolling mean  | Uses recent CPI MoM average                                    |
-| Ridge         | Linear numeric-feature baseline                                |
-| Random Forest | Nonlinear classical numeric baseline                           |
-| Numeric MLP   | Raw PyTorch tabular numeric model                              |
-| Numeric GRU   | Raw PyTorch lag-structured numeric sequence model              |
-| TextCNN       | Raw PyTorch text model with embeddings trained from scratch    |
-| Fusion MLP    | Combines numeric MLP representation and TextCNN representation |
+For each 5-minute window:
+
+- a TextCNN encodes tokenized commentary and event text;
+- a numeric projection encodes event counts, score state, key-event counts, coordinates, and safe lineup features;
+- the two vectors are concatenated and projected into a fused window representation.
+
+A GRU reads the 9 fused window vectors. The final hidden state is passed to a three-class classifier for home/draw/away logits.
 
 ## Evaluation
 
-The split is chronological. The test period is never used for fitting scalers, tokenizers, or model parameters.
+The split is chronological. The test period is not used for fitting vocabulary, scalers, model parameters, or early stopping.
 
 Metrics:
 
-- MAE is the primary metric.
-- RMSE captures larger forecast misses.
-- Direction accuracy measures whether the model predicts the direction of CPI MoM movement relative to the previous available CPI MoM.
-- MAE delta vs last-value baseline reports improvement over the simplest benchmark.
+- Accuracy measures overall correct predictions.
+- Macro F1 measures class-balanced quality.
+- Log loss measures probability quality.
+- Per-class precision, recall, and F1 show class-specific behavior.
+- Confusion matrix shows error structure.
 
 ## Results
 
 Replace this section after the extended training run.
 
-| Model         | Validation MAE | Test MAE | Test RMSE | Test Direction Accuracy |
-| ------------- | -------------- | -------- | --------- | ----------------------- |
-| Last value    | TODO           | TODO     | TODO      | TODO                    |
-| Rolling mean  | TODO           | TODO     | TODO      | TODO                    |
-| Ridge         | TODO           | TODO     | TODO      | TODO                    |
-| Random Forest | TODO           | TODO     | TODO      | TODO                    |
-| Numeric MLP   | TODO           | TODO     | TODO      | TODO                    |
-| Numeric GRU   | TODO           | TODO     | TODO      | TODO                    |
-| TextCNN       | TODO           | TODO     | TODO      | TODO                    |
-| Fusion MLP    | TODO           | TODO     | TODO      | TODO                    |
+| Split      | Accuracy | Macro F1 | Log Loss |
+| ---------- | -------- | -------- | -------- |
+| Validation | TODO     | TODO     | TODO     |
+| Test       | TODO     | TODO     | TODO     |
 
 Generated figures after `just evaluate`:
 
-- `output/figures/cpi_history.png`
-- `output/figures/feature_coverage.png`
-- `output/figures/predictions_vs_actual.png`
-- `output/figures/residuals.png`
-- `output/figures/model_comparison.png`
+- `output/figures/confusion_matrix.png`
+- `output/figures/class_distribution.png`
+- `output/figures/prediction_confidence.png`
+- `output/figures/metric_comparison.png`
+- `output/figures/training_loss_fusion_gru.png`
 
 ## Reproducibility
 
@@ -93,13 +88,13 @@ just sync
 just run
 ```
 
-For a longer final training run:
+Short CPU smoke run:
 
 ```bash
-TIF_EPOCHS=200 TIF_PATIENCE=20 just train
+FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just train
 just evaluate
 ```
 
 ## Limitations
 
-The current text corpus is limited to official CBRT MPC documents. Broader news data is not included. Some macro indicators have publication delays, so this implementation uses conservative lag rules. Final claims about model superiority should be made only after the long training run and test-period report are reviewed.
+The current first-pass features use conservative event counts and coarse coordinate summaries. ESPN event semantics can vary across competitions, and clocks are normalized conservatively. Future work should add lagged pre-match team strength features, richer event taxonomy mappings, and calibration analysis after the base model is stable.

@@ -10,10 +10,10 @@ description: Conventions, rules and policies for project development.
 
 #### Toolchain
 
-- **uv**: 0.11+
+- **uv**: Python environment management
 - **Python**: Project-pinned version from `pyproject.toml`
-- **PyTorch**: Raw PyTorch for deep learning models
-- **scikit-learn**: Classical baselines and preprocessing utilities where useful
+- **PyTorch**: Raw PyTorch for the neural classifier
+- **scikit-learn**: Metrics and preprocessing utilities
 - **matplotlib**: Static report figures
 - **numpy/pandas**: Numeric arrays and tabular pipeline artifacts
 
@@ -21,48 +21,44 @@ description: Conventions, rules and policies for project development.
 
 - Quote style: double
 - Indent style: space
-- Importable code lives under `src/tif/`.
+- Importable code lives under `src/fip/`.
 - Generated data, reports, figures, and checkpoints are not source code.
 
 ### Modeling Rules
 
-- CPI MoM is the only target.
+- Final match outcome is the only target.
+- Forecast origin is minute 45.
 - Random train/test splits are not allowed.
 - Chronological train, validation, and test periods are required.
-- Feature engineering must respect the forecast origin cutoff date.
+- Feature engineering must respect the minute-45 cutoff.
+- Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded unless future work implements explicit lagging.
 - External pretrained language models, pretrained embeddings, and language model APIs are not allowed.
 - Text encoders must use tokenizers and embeddings trained on the project corpus from scratch.
-- Baselines are required before interpreting deep learning results.
-
-### Documentation Rules
-
-- Update documentation when architecture, commands, data layout, or workflow changes.
-- Keep implementation details near the relevant source code when comments are needed.
-- Keep high-level project structure and workflow information in `docs/`.
+- The first model trains one architecture only: text windows plus numeric windows fused through a GRU classifier.
 
 ## Workflow
 
 ### Development Commands
 
 - `just sync` installs the Python environment.
-- `just run` runs the main pipeline when implementation is complete.
+- `just run` runs the full pipeline.
 - `just docs` serves the documentation site locally.
 
 Pipeline commands:
 
-- `just download` downloads or scrapes source data.
-- `just preprocess` cleans raw source files and builds model-ready numeric and text features.
-- `just train` trains baselines and deep learning models.
-- `just evaluate` computes validation and test metrics and generates report figures.
+- `just download` validates local ESPN raw data and writes source manifests.
+- `just preprocess` builds leakage-safe minute-45 match sequences.
+- `just train` trains the single fusion GRU classifier.
+- `just evaluate` computes classification metrics and generates report figures.
 
 `just run` executes the full pipeline in stage order: download, preprocess, train, and evaluate.
 
-Training and architecture defaults are controlled through environment variables documented in `docs/spec.md`. Use environment variables for longer or smaller runs, for example `TIF_EPOCHS=200 TIF_PATIENCE=20 just train`.
+Training and architecture defaults are controlled through environment variables documented in `docs/spec.md`. Use environment variables for smaller or longer runs, for example `FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just train`.
 
 ### Quality and Verification Commands
 
 - `just check` runs formatting and lint checks.
-- `just fix` runs the automated format and lint fixes.
+- `just fix` runs automated format and lint fixes.
 - `just test` runs tests.
 - `just ci` runs the full check and test gate.
 
@@ -72,23 +68,23 @@ Use `just` recipes instead of raw tool commands when a recipe exists. Raw comman
 
 Tests should focus on deterministic project logic rather than model quality.
 
-| Area                 | Required Coverage                                                              |
-| -------------------- | ------------------------------------------------------------------------------ |
-| Splits               | Chronological ordering and non-overlapping train, validation, and test periods |
-| Feature engineering  | Lagged features, rolling windows, transformations, and missing-value behavior  |
-| Leakage prevention   | CPI releases, macro indicators, and text documents must respect cutoff dates   |
-| Dataset construction | Input windows must point to the correct next-month CPI MoM target              |
-| Metrics              | MAE, RMSE, direction accuracy, and baseline comparisons                        |
-| Entrypoints          | Smoke tests for stage-specific console entrypoints where feasible              |
+| Area                 | Required Coverage                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| Splits               | Chronological ordering and non-overlapping train, validation, and test periods      |
+| Leakage prevention   | No play, key event, commentary, or unsafe lineup data after minute 45 enters inputs |
+| Dataset construction | Match labels, 5-minute windows, numeric sequence shapes, and token sequence shapes  |
+| Tokenization         | Vocabulary is built from the train split only                                       |
+| Model                | Fusion GRU forward pass returns one home/draw/away logit vector per match           |
+| Metrics              | Accuracy, macro F1, log loss, and per-class report calculations                     |
 
-Training quality should be verified with reports and metrics, not unit tests.
+Training quality should be verified with generated reports and metrics, not unit tests.
 
-Each source file under `src/tif/` should have one corresponding test file under `tests/`. Shared helpers belong in `tif.utils`; stage modules should use module imports such as `import tif.utils` and access shared values as `tif.utils.MAX_TOKENS`.
+Each source file under `src/fip/` should have one corresponding test file under `tests/`. Shared helpers belong in `fip.utils`; stage modules should use module imports such as `import fip.utils` and access shared values as `fip.utils.MAX_TOKENS_PER_WINDOW`.
 
 ## Reproducibility
 
-- Source definitions and download logic are committed.
-- Full datasets are generated locally under `data/`.
+- Raw ESPN data is placed locally under `data/raw/`.
+- Full processed datasets are generated locally under `data/processed/`.
 - Model outputs are generated locally under `output/`.
 - Random seeds should be controlled in training commands.
 - Evaluation commands should write machine-readable metrics to `output/reports/`.

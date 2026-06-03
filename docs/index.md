@@ -5,13 +5,19 @@ hide:
   - toc
 ---
 
-# Turkish Inflation Forecasting {: align="center" }
+# Football In-Play Prediction {: align="center" }
 
 <div class="grid cards" markdown>
 
 -   ## Project
 
-    Forecasting Turkish inflation using deep learning.
+    [**Medium Article**](https://oguzhanozkaya.github.io/football-inplay-prediction/)
+
+    [:fontawesome-regular-file-lines: **Presentation**](https://oguzhanozkaya.github.io/football-inplay-prediction/)
+
+    Predicting football match outcomes at minute 45 using deep learning.
+
+    **Dataset**: [ESPN Soccer Data](https://www.kaggle.com/datasets/excel4soccer/espn-soccer-data)
 
     **Student**: Oğuzhan Özkaya
 
@@ -19,18 +25,20 @@ hide:
 
     _ADA 447 Introduction to Deep Learning - TED University_
 
+</div>
+
+<div class="grid cards" markdown>
+
 -   ## Overview
 
-    This project forecasts CPI MoM for month t+1 using only information available at the end of month t. The main challenge is not only model accuracy, but also correct time alignment. CPI releases, macro-financial indicators, and text documents must be filtered by publication date so future information cannot leak into earlier forecasts.
-
-    The modeling pipeline will compare simple baselines, classical machine learning baselines, numeric deep learning models, text encoders trained from scratch, and a final fusion model that combines numeric and text representations.
+    This project predicts whether the final result will be a home win, draw, or away win using only match information available through minute 45. The core challenge is time alignment: commentary, plays, key events, and lineup-derived inputs must be sliced so later match information cannot leak into the in-play prediction.
 
 -   ## Objective
 
-    Build a reproducible term project that can download data, construct a leakage-safe monthly dataset, train baseline and deep learning models, evaluate them chronologically, and generate article-ready outputs.
+    Build a reproducible command-driven pipeline that validates local ESPN Soccer raw data, constructs leakage-safe 5-minute match windows, trains one hybrid neural classifier, evaluates chronological splits, and generates report-ready outputs.
 
 -   ## Approach
 
-    Combine numeric time-series features with a text branch that learns inflation-pressure representations from central bank publications and economic news without external pretrained models.
+    Combine text commentary and numerical event features inside one raw-PyTorch architecture: a TextCNN encodes each 5-minute text window, numeric features are projected per window, fused vectors are passed through a GRU, and the final hidden state predicts home/draw/away.
 
 </div>

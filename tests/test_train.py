@@ -1,55 +1,60 @@
 import numpy as np
 import pandas as pd
+import torch
 
-import tif.train
-import tif.utils
-
-
-def test_pad_token_sequences_uses_utils_max_tokens() -> None:
-    sequences = pd.Series([[1, 2, 3], [4] * (tif.utils.MAX_TOKENS + 5), None])
-
-    matrix = tif.train._pad_token_sequences(sequences)
-
-    assert matrix.shape == (3, tif.utils.MAX_TOKENS)
-    assert matrix[0, :3].tolist() == [1, 2, 3]
-    assert matrix[1, -1] == 4
-    assert np.count_nonzero(matrix[2]) == 0
-
-
-def test_sequence_plan_uses_lag_features() -> None:
-    variables, steps = tif.train._sequence_plan(["a_lag_1", "a_lag_2", "b_lag_1", "plain"], (2, 1, 0))
-
-    assert variables == ["a"]
-    assert steps == [2, 1, 0]
+import fip.train
 
 
 def test_training_config_reads_architecture_environment(monkeypatch) -> None:
-    monkeypatch.setenv("TIF_SEQUENCE_STEPS", "6,3,1")
-    monkeypatch.setenv("TIF_TEXT_KERNEL_SIZES", "2,4")
-    monkeypatch.setenv("TIF_FUSION_HIDDEN_SIZE", "96")
+    monkeypatch.setenv("FIP_TEXT_KERNEL_SIZES", "2,4")
+    monkeypatch.setenv("FIP_FUSION_HIDDEN_SIZE", "96")
+    monkeypatch.setenv("FIP_GRU_HIDDEN_SIZE", "48")
 
-    config = tif.train.TrainingConfig.from_environment()
+    config = fip.train.TrainingConfig.from_environment()
 
-    assert config.sequence_steps == (6, 3, 1)
     assert config.text_kernel_sizes == (2, 4)
     assert config.fusion_hidden_size == 96
+    assert config.gru_hidden_size == 48
 
 
-def test_training_history_frame_extracts_neural_histories() -> None:
-    summary = {
-        "models": {
-            "last_value": {"type": "baseline"},
-            "numeric_mlp": {
-                "type": "deep_numeric",
-                "history": [
-                    {"epoch": 1, "train_loss": 2.0, "validation_loss": 3.0},
-                    {"epoch": 2, "train_loss": 1.0, "validation_loss": 2.0},
-                ],
-            },
-        }
-    }
+def test_match_tensor_dataset_shapes() -> None:
+    dataset = fip.train.MatchTensorDataset(
+        np.zeros((2, 9, 4), dtype=float),
+        np.zeros((2, 9, 8), dtype=int),
+        np.array([0, 2]),
+    )
 
-    history = tif.train._training_history_frame(summary)
+    item = dataset[0]
+    assert item["numeric"].shape == (9, 4)
+    assert item["tokens"].shape == (9, 8)
+    assert item["target"].dtype == torch.long
 
-    assert history["model_name"].tolist() == ["numeric_mlp", "numeric_mlp"]
-    assert history["validation_loss"].tolist() == [3.0, 2.0]
+
+def test_sequence_array_handles_nested_numpy_cells() -> None:
+    series = pd.Series(
+        [
+            np.array([np.array([1, 2]), np.array([3, 4])], dtype=object),
+            np.array([np.array([5, 6]), np.array([7, 8])], dtype=object),
+        ]
+    )
+
+    array = fip.train._sequence_array(series, int)
+
+    assert array.shape == (2, 2, 2)
+    assert array[1, 1, 1] == 8
+
+
+def test_fusion_gru_classifier_forward_shape() -> None:
+    config = fip.train.TrainingConfig(
+        text_embedding_dim=8,
+        text_channel_count=4,
+        text_kernel_sizes=(2, 3),
+        numeric_projection_size=6,
+        fusion_hidden_size=10,
+        gru_hidden_size=12,
+    )
+    model = fip.train.FusionGRUClassifier(numeric_input_size=5, vocabulary_size=20, config=config)
+
+    logits = model(torch.zeros((3, 9, 5)), torch.zeros((3, 9, 8), dtype=torch.long))
+
+    assert logits.shape == (3, 3)

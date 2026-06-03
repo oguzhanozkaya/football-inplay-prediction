@@ -2,32 +2,30 @@
 # Usage: just <recipe>
 # Run `just --list` to see all available recipes.
 
-# Default environemnt variables
-export TIF_SEED := env("TIF_SEED", "447")
-export TIF_EPOCHS := env("TIF_EPOCHS", "36000")
-export TIF_PATIENCE := env("TIF_PATIENCE", "100000")
-export TIF_BATCH_SIZE := env("TIF_BATCH_SIZE", "32")
-export TIF_LEARNING_RATE := env("TIF_LEARNING_RATE", "0.00001")
-export TIF_WEIGHT_DECAY := env("TIF_WEIGHT_DECAY", "0.0")
-export TIF_EARLY_STOPPING_MIN_DELTA := env("TIF_EARLY_STOPPING_MIN_DELTA", "0.00000001")
-export TIF_RIDGE_ALPHA := env("TIF_RIDGE_ALPHA", "1.0")
-export TIF_RANDOM_FOREST_TREES := env("TIF_RANDOM_FOREST_TREES", "200")
-export TIF_RANDOM_FOREST_MIN_SAMPLES_LEAF := env("TIF_RANDOM_FOREST_MIN_SAMPLES_LEAF", "3")
-export TIF_DEVICE := env("TIF_DEVICE", "cuda")
-export TIF_SEQUENCE_STEPS := env("TIF_SEQUENCE_STEPS", "12,6,3,2,1,0")
-export TIF_MAX_TOKENS := env("TIF_MAX_TOKENS", "256")
-export TIF_MAX_VOCAB_SIZE := env("TIF_MAX_VOCAB_SIZE", "5000")
-export TIF_TEXT_LOOKBACK_MONTHS := env("TIF_TEXT_LOOKBACK_MONTHS", "12")
-export TIF_NUMERIC_MLP_HIDDEN_SIZE := env("TIF_NUMERIC_MLP_HIDDEN_SIZE", "128")
-export TIF_NUMERIC_MLP_DROPOUT := env("TIF_NUMERIC_MLP_DROPOUT", "0.15")
-export TIF_NUMERIC_GRU_HIDDEN_SIZE := env("TIF_NUMERIC_GRU_HIDDEN_SIZE", "64")
-export TIF_NUMERIC_GRU_DROPOUT := env("TIF_NUMERIC_GRU_DROPOUT", "0.10")
-export TIF_TEXT_EMBEDDING_DIM := env("TIF_TEXT_EMBEDDING_DIM", "64")
-export TIF_TEXT_CHANNEL_COUNT := env("TIF_TEXT_CHANNEL_COUNT", "48")
-export TIF_TEXT_KERNEL_SIZES := env("TIF_TEXT_KERNEL_SIZES", "3,4,5")
-export TIF_TEXT_DROPOUT := env("TIF_TEXT_DROPOUT", "0.20")
-export TIF_FUSION_HIDDEN_SIZE := env("TIF_FUSION_HIDDEN_SIZE", "128")
-export TIF_FUSION_DROPOUT := env("TIF_FUSION_DROPOUT", "0.15")
+# Default environment variables
+export FIP_SEED := env("FIP_SEED", "447")
+export FIP_EPOCHS := env("FIP_EPOCHS", "80")
+export FIP_PATIENCE := env("FIP_PATIENCE", "12")
+export FIP_BATCH_SIZE := env("FIP_BATCH_SIZE", "64")
+export FIP_LEARNING_RATE := env("FIP_LEARNING_RATE", "0.0001")
+export FIP_WEIGHT_DECAY := env("FIP_WEIGHT_DECAY", "0.0")
+export FIP_EARLY_STOPPING_MIN_DELTA := env("FIP_EARLY_STOPPING_MIN_DELTA", "0.00001")
+export FIP_DEVICE := env("FIP_DEVICE", "cuda")
+export FIP_CUTOFF_MINUTE := env("FIP_CUTOFF_MINUTE", "45")
+export FIP_WINDOW_MINUTES := env("FIP_WINDOW_MINUTES", "5")
+export FIP_MAX_TOKENS_PER_WINDOW := env("FIP_MAX_TOKENS_PER_WINDOW", "64")
+export FIP_MAX_VOCAB_SIZE := env("FIP_MAX_VOCAB_SIZE", "20000")
+export FIP_TOP_PLAY_TYPES := env("FIP_TOP_PLAY_TYPES", "24")
+export FIP_TOP_KEY_EVENT_TYPES := env("FIP_TOP_KEY_EVENT_TYPES", "24")
+export FIP_TOP_FORMATIONS := env("FIP_TOP_FORMATIONS", "16")
+export FIP_TEXT_EMBEDDING_DIM := env("FIP_TEXT_EMBEDDING_DIM", "64")
+export FIP_TEXT_CHANNEL_COUNT := env("FIP_TEXT_CHANNEL_COUNT", "48")
+export FIP_TEXT_KERNEL_SIZES := env("FIP_TEXT_KERNEL_SIZES", "3,4,5")
+export FIP_TEXT_DROPOUT := env("FIP_TEXT_DROPOUT", "0.20")
+export FIP_NUMERIC_PROJECTION_SIZE := env("FIP_NUMERIC_PROJECTION_SIZE", "64")
+export FIP_FUSION_HIDDEN_SIZE := env("FIP_FUSION_HIDDEN_SIZE", "128")
+export FIP_GRU_HIDDEN_SIZE := env("FIP_GRU_HIDDEN_SIZE", "128")
+export FIP_DROPOUT := env("FIP_DROPOUT", "0.20")
 
 # Sync python environment
 [group('dev')]
@@ -38,26 +36,26 @@ sync:
 [group('run')]
 run: download preprocess train evaluate
 
-# Download numeric data and text sources
+# Validate local ESPN raw data
 [group('run')]
 download:
-  uv run tif-download
+  uv run fip-download
 
 # Clean raw source files and build processed model data
 [group('run')]
 preprocess:
-  uv run tif-preprocess
+  uv run fip-preprocess
 
-# Train baselines and deep learning models
+# Train the single text-numeric fusion classifier
 [group('run')]
 [default]
 train:
-  uv run tif-train
+  uv run fip-train
 
-# Evaluate models on chronological splits and generate figures
+# Evaluate the classifier on chronological splits and generate figures
 [group('run')]
 evaluate:
-  uv run tif-evaluate
+  uv run fip-evaluate
 
 
 # Fix: format and lint

@@ -1,8 +1,14 @@
-# Turkish Inflation Forecasting
+# Football In-Play Prediction
 
-**[Web Page and Documentation](https://oguzhanozkaya.github.io/turkish-inflation-forecasting/)**
+**[Web Page and Documentation](https://oguzhanozkaya.github.io/football-inplay-prediction/)**
 
-Forecasting Turkish inflation using deep learning.
+[**Medium Article**](https://oguzhanozkaya.github.io/football-inplay-prediction/)
+
+[**Presentation**](https://oguzhanozkaya.github.io/football-inplay-prediction/)
+
+Predicting football match outcomes at minute 45 using deep learning.
+
+**Dataset**: [ESPN Soccer Data](https://www.kaggle.com/datasets/excel4soccer/espn-soccer-data)
 
 **Student**: Oğuzhan Özkaya
 

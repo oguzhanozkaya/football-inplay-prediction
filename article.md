@@ -36,19 +36,19 @@ Feature availability rules are conservative:
 | Commentary | Use rows with parsed clock at or before minute 45; missing clocks are treated as early text. |
 | Lineups    | Use formation and starter metadata; exclude winner fields and post-cutoff substitutions.     |
 
-Each match is sliced into 9 five-minute windows from `0-5` through `40-45`. The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
+Each match is sliced into configured windows through minute 45. The command default uses `0-15`, `15-30`, and `30-45`; setting `FIP_WINDOW_MINUTES=5` creates 9 finer-grained windows. The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
 
 ## Model
 
 Only one architecture is trained: `FusionGRUClassifier`.
 
-For each 5-minute window:
+For each configured match-time window:
 
 - a TextCNN encodes tokenized commentary and event text;
 - a numeric projection encodes event counts, score state, key-event counts, coordinates, and safe lineup features;
 - the two vectors are concatenated and projected into a fused window representation.
 
-A GRU reads the 9 fused window vectors. The final hidden state is passed to a three-class classifier for home/draw/away logits.
+A GRU reads the fused window vectors. The final hidden state is passed to a three-class classifier for home/draw/away logits.
 
 ## Evaluation
 

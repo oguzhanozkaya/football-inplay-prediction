@@ -62,7 +62,7 @@ Tests mirror this source layout. Each source file has one corresponding test fil
 | `data/processed/` | Leakage-safe model datasets and metadata     | ignored    |
 | `tests/`          | Deterministic unit tests for source files    | committed  |
 
-The preprocess stage writes `fixtures.parquet`, `model_dataset.parquet`, `feature_metadata.json`, `text_vocabulary.json`, and `split_summary.json` under `data/processed/`.
+The preprocess stage writes `fixtures.parquet`, `model_dataset.parquet`, `train_tensors.pt`, `feature_metadata.json`, `text_vocabulary.json`, and `split_summary.json` under `data/processed/`.
 
 ## Output Directories
 

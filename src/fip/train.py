@@ -12,7 +12,6 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
@@ -27,6 +26,13 @@ def _int_tuple_from_environment(name: str, default: tuple[int, ...]) -> tuple[in
     if not raw_value:
         return default
     return tuple(int(value.strip()) for value in raw_value.split(",") if value.strip())
+
+
+def _bool_from_environment(name: str, default: bool) -> bool:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
@@ -49,6 +55,10 @@ class TrainingConfig:
     fusion_hidden_size: int = 128
     gru_hidden_size: int = 128
     dropout: float = 0.20
+    dataloader_workers: int = 4
+    cache_tensors_on_device: bool = True
+    mixed_precision: bool = True
+    compile_model: bool = False
 
     @classmethod
     def from_environment(cls) -> TrainingConfig:
@@ -69,6 +79,10 @@ class TrainingConfig:
             fusion_hidden_size=int(os.environ.get("FIP_FUSION_HIDDEN_SIZE", "128")),
             gru_hidden_size=int(os.environ.get("FIP_GRU_HIDDEN_SIZE", "128")),
             dropout=float(os.environ.get("FIP_DROPOUT", "0.20")),
+            dataloader_workers=int(os.environ.get("FIP_DATALOADER_WORKERS", "4")),
+            cache_tensors_on_device=_bool_from_environment("FIP_CACHE_TENSORS_ON_DEVICE", True),
+            mixed_precision=_bool_from_environment("FIP_MIXED_PRECISION", True),
+            compile_model=_bool_from_environment("FIP_COMPILE_MODEL", False),
         )
 
 
@@ -91,10 +105,21 @@ class TrainingError(RuntimeError):
 class MatchTensorDataset(Dataset):
     """Tensor dataset for match-window text and numeric sequences."""
 
-    def __init__(self, numeric_sequence: np.ndarray, token_windows: np.ndarray, target: np.ndarray) -> None:
-        self.numeric_sequence = torch.tensor(numeric_sequence, dtype=torch.float32)
-        self.token_windows = torch.tensor(token_windows, dtype=torch.long)
-        self.target = torch.tensor(target, dtype=torch.long)
+    def __init__(
+        self,
+        numeric_sequence: np.ndarray | torch.Tensor,
+        token_windows: np.ndarray | torch.Tensor,
+        target: np.ndarray | torch.Tensor,
+    ) -> None:
+        self.numeric_sequence = torch.as_tensor(numeric_sequence, dtype=torch.float32)
+        self.token_windows = torch.as_tensor(token_windows, dtype=torch.long)
+        self.target = torch.as_tensor(target, dtype=torch.long)
+
+    def to_device(self, device: torch.device) -> MatchTensorDataset:
+        self.numeric_sequence = self.numeric_sequence.to(device, non_blocking=True)
+        self.token_windows = self.token_windows.to(device, non_blocking=True)
+        self.target = self.target.to(device, non_blocking=True)
+        return self
 
     def __len__(self) -> int:
         return len(self.target)
@@ -205,18 +230,63 @@ def _sequence_array(series: pd.Series, dtype: type) -> np.ndarray:
 def _scale_numeric_sequences(dataset: pd.DataFrame) -> np.ndarray:
     sequences = _sequence_array(dataset["numeric_sequence"], float)
     train_mask = dataset["split"].to_numpy() == "train"
-    scaler = StandardScaler()
     shape = sequences.shape
-    flat = sequences.reshape(shape[0] * shape[1], shape[2])
     train_flat = sequences[train_mask].reshape(train_mask.sum() * shape[1], shape[2])
-    scaler.fit(train_flat)
-    return scaler.transform(flat).reshape(shape)
+    mean = train_flat.mean(axis=0, dtype=np.float64)
+    std = train_flat.std(axis=0, dtype=np.float64)
+    std[std < 1e-6] = 1.0
+    return ((sequences - mean) / std).astype(np.float32)
+
+
+def _load_tensor_artifact(
+    paths: fip.utils.ProjectPaths, dataset: pd.DataFrame
+) -> tuple[MatchTensorDataset, dict[str, torch.Tensor], tuple[int, int, int], tuple[int, int, int]]:
+    tensor_path = paths.processed_data / "train_tensors.pt"
+    if tensor_path.is_file():
+        artifact = torch.load(tensor_path, map_location="cpu", weights_only=False)
+        tensor_dataset = MatchTensorDataset(artifact["numeric_sequence"], artifact["token_windows"], artifact["target"])
+        split_indices = artifact["split_indices"]
+    else:
+        print("train: train_tensors.pt missing; building tensors from parquet. Run `just preprocess` to cache them.")
+        numeric_sequence = _scale_numeric_sequences(dataset)
+        token_windows = _sequence_array(dataset["token_windows"], int)
+        target = dataset["target"].to_numpy(dtype=int)
+        tensor_dataset = MatchTensorDataset(numeric_sequence, token_windows, target)
+        split_indices = {
+            split: torch.from_numpy(np.flatnonzero(dataset["split"].to_numpy() == split).astype(np.int64))
+            for split in ("train", "validation", "test")
+        }
+    numeric_shape = tuple(tensor_dataset.numeric_sequence.shape)
+    token_shape = tuple(tensor_dataset.token_windows.shape)
+    return tensor_dataset, split_indices, numeric_shape, token_shape
+
+
+def _tensor_indices(indices: np.ndarray | torch.Tensor) -> list[int]:
+    if isinstance(indices, torch.Tensor):
+        return indices.detach().cpu().tolist()
+    return indices.tolist()
 
 
 def _loader(
-    indices: np.ndarray, tensor_dataset: MatchTensorDataset, config: TrainingConfig, *, shuffle: bool
+    indices: np.ndarray | torch.Tensor,
+    tensor_dataset: MatchTensorDataset,
+    config: TrainingConfig,
+    *,
+    shuffle: bool,
+    device_cached: bool,
+    use_cuda: bool,
 ) -> DataLoader:
-    return DataLoader(Subset(tensor_dataset, indices.tolist()), batch_size=config.batch_size, shuffle=shuffle)
+    workers = 0 if device_cached else config.dataloader_workers
+    kwargs: dict[str, object] = {
+        "batch_size": config.batch_size,
+        "shuffle": shuffle,
+        "num_workers": workers,
+        "pin_memory": use_cuda and not device_cached,
+    }
+    if workers > 0:
+        kwargs["persistent_workers"] = True
+        kwargs["prefetch_factor"] = 2
+    return DataLoader(Subset(tensor_dataset, _tensor_indices(indices)), **kwargs)
 
 
 def _run_epoch(
@@ -225,6 +295,8 @@ def _run_epoch(
     criterion: nn.Module,
     device: torch.device,
     optimizer: torch.optim.Optimizer | None = None,
+    scaler: torch.amp.GradScaler | None = None,
+    mixed_precision: bool = False,
 ) -> tuple[float, float]:
     training = optimizer is not None
     model.train(training)
@@ -232,16 +304,22 @@ def _run_epoch(
     correct = 0
     total = 0
     for batch in loader:
-        numeric = batch["numeric"].to(device)
-        tokens = batch["tokens"].to(device)
-        target = batch["target"].to(device)
+        numeric = batch["numeric"].to(device, non_blocking=True)
+        tokens = batch["tokens"].to(device, non_blocking=True)
+        target = batch["target"].to(device, non_blocking=True)
         if training:
             optimizer.zero_grad(set_to_none=True)
-        logits = model(numeric, tokens)
-        loss = criterion(logits, target)
+        with torch.autocast(device_type=device.type, enabled=mixed_precision):
+            logits = model(numeric, tokens)
+            loss = criterion(logits, target)
         if training:
-            loss.backward()
-            optimizer.step()
+            if scaler is not None and scaler.is_enabled():
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                optimizer.step()
         total_loss += float(loss.item()) * len(target)
         correct += int((logits.argmax(dim=1) == target).sum().item())
         total += int(len(target))
@@ -251,17 +329,19 @@ def _run_epoch(
 def _predict(
     model: FusionGRUClassifier,
     tensor_dataset: MatchTensorDataset,
-    indices: np.ndarray,
+    indices: np.ndarray | torch.Tensor,
     device: torch.device,
     batch_size: int,
+    mixed_precision: bool,
 ) -> tuple[np.ndarray, np.ndarray]:
-    loader = DataLoader(Subset(tensor_dataset, indices.tolist()), batch_size=batch_size, shuffle=False)
+    loader = DataLoader(Subset(tensor_dataset, _tensor_indices(indices)), batch_size=batch_size, shuffle=False)
     model.eval()
     probabilities = []
     predictions = []
     with torch.no_grad():
         for batch in loader:
-            logits = model(batch["numeric"].to(device), batch["tokens"].to(device))
+            with torch.autocast(device_type=device.type, enabled=mixed_precision):
+                logits = model(batch["numeric"].to(device), batch["tokens"].to(device))
             probs = torch.softmax(logits, dim=1).cpu().numpy()
             probabilities.append(probs)
             predictions.append(probs.argmax(axis=1))
@@ -308,12 +388,13 @@ def _log_training_startup(
     *,
     config: TrainingConfig,
     dataset: pd.DataFrame,
-    split_indices: dict[str, np.ndarray],
-    numeric_sequence: np.ndarray,
-    token_windows: np.ndarray,
+    split_indices: dict[str, np.ndarray | torch.Tensor],
+    numeric_shape: tuple[int, int, int],
+    token_shape: tuple[int, int, int],
     metadata: dict[str, object],
     vocabulary_size: int,
     device: torch.device,
+    device_cached: bool,
 ) -> None:
     """Print a readable training startup summary."""
 
@@ -322,7 +403,7 @@ def _log_training_startup(
     print(f"train:   data rows={len(dataset):,} splits=[{split_summary}]")
     print(
         "train:   tensors "
-        f"numeric_sequence={numeric_sequence.shape} token_windows={token_windows.shape} "
+        f"numeric_sequence={numeric_shape} token_windows={token_shape} "
         f"numeric_features={len(metadata['numeric_feature_columns']):,} vocabulary={vocabulary_size:,}"
     )
     print(
@@ -336,6 +417,11 @@ def _log_training_startup(
         f"epochs={config.epochs} patience={config.patience} batch_size={config.batch_size} "
         f"learning_rate={config.learning_rate:g} weight_decay={config.weight_decay:g} "
         f"min_delta={config.early_stopping_min_delta:g} seed={config.seed} device={device}"
+    )
+    print(
+        "train:   performance "
+        f"cache_tensors_on_device={device_cached} mixed_precision={device.type == 'cuda' and config.mixed_precision} "
+        f"dataloader_workers={0 if device_cached else config.dataloader_workers} compile_model={config.compile_model}"
     )
 
 
@@ -355,40 +441,56 @@ def train_model(
     dataset = pd.read_parquet(dataset_path).sort_values(["date", "eventId"]).reset_index(drop=True)
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
-    numeric_sequence = _scale_numeric_sequences(dataset)
-    token_windows = _sequence_array(dataset["token_windows"], int)
-    target = dataset["target"].to_numpy(dtype=int)
-    tensor_dataset = MatchTensorDataset(numeric_sequence, token_windows, target)
-    split_indices = {
-        split: np.flatnonzero(dataset["split"].to_numpy() == split) for split in ("train", "validation", "test")
-    }
+    tensor_dataset, split_indices, numeric_shape, token_shape = _load_tensor_artifact(paths, dataset)
     if len(split_indices["train"]) == 0 or len(split_indices["validation"]) == 0:
         raise TrainingError("Train and validation splits must be non-empty")
     device = select_device(config.device)
+    use_cuda = device.type == "cuda"
+    device_cached = bool(use_cuda and config.cache_tensors_on_device)
+    if device_cached:
+        tensor_dataset.to_device(device)
     _log_training_startup(
         config=config,
         dataset=dataset,
         split_indices=split_indices,
-        numeric_sequence=numeric_sequence,
-        token_windows=token_windows,
+        numeric_shape=numeric_shape,
+        token_shape=token_shape,
         metadata=metadata,
         vocabulary_size=len(vocabulary),
         device=device,
+        device_cached=device_cached,
     )
     model = FusionGRUClassifier(len(metadata["numeric_feature_columns"]), len(vocabulary), config).to(device)
+    if config.compile_model:
+        model = torch.compile(model)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
-    train_loader = _loader(split_indices["train"], tensor_dataset, config, shuffle=True)
-    validation_loader = _loader(split_indices["validation"], tensor_dataset, config, shuffle=False)
+    mixed_precision = bool(use_cuda and config.mixed_precision)
+    scaler = torch.amp.GradScaler("cuda", enabled=mixed_precision)
+    train_loader = _loader(
+        split_indices["train"], tensor_dataset, config, shuffle=True, device_cached=device_cached, use_cuda=use_cuda
+    )
+    validation_loader = _loader(
+        split_indices["validation"],
+        tensor_dataset,
+        config,
+        shuffle=False,
+        device_cached=device_cached,
+        use_cuda=use_cuda,
+    )
 
     best_state = None
     best_validation_loss = float("inf")
     stale_epochs = 0
     history = []
     for epoch in range(1, config.epochs + 1):
-        train_loss, train_accuracy = _run_epoch(model, train_loader, criterion, device, optimizer)
+        train_loss, train_accuracy = _run_epoch(
+            model, train_loader, criterion, device, optimizer, scaler, mixed_precision
+        )
         with torch.no_grad():
-            validation_loss, validation_accuracy = _run_epoch(model, validation_loader, criterion, device)
+            validation_loss, validation_accuracy = _run_epoch(
+                model, validation_loader, criterion, device, mixed_precision=mixed_precision
+            )
         history.append(
             {
                 "epoch": epoch,
@@ -417,8 +519,10 @@ def train_model(
     for split, indices in split_indices.items():
         if len(indices) == 0:
             continue
-        probabilities, predictions = _predict(model, tensor_dataset, indices, device, config.batch_size)
-        split_frame = dataset.iloc[indices].reset_index(drop=True)
+        probabilities, predictions = _predict(
+            model, tensor_dataset, indices, device, config.batch_size, mixed_precision
+        )
+        split_frame = dataset.iloc[_tensor_indices(indices)].reset_index(drop=True)
         for row, probs, prediction in zip(split_frame.itertuples(index=False), probabilities, predictions, strict=True):
             rows.append(
                 {

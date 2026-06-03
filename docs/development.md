@@ -53,7 +53,7 @@ Pipeline commands:
 
 `just run` executes the full pipeline in stage order: download, preprocess, train, and evaluate.
 
-Training and architecture defaults are controlled through environment variables documented in `docs/spec.md`. Use environment variables for smaller or longer runs, for example `FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just train`.
+Training, architecture, and performance defaults are controlled through environment variables documented in `docs/spec.md`. Use environment variables for smaller or longer runs, for example `FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just train`.
 
 ### Quality and Verification Commands
 
@@ -68,14 +68,14 @@ Use `just` recipes instead of raw tool commands when a recipe exists. Raw comman
 
 Tests should focus on deterministic project logic rather than model quality.
 
-| Area                 | Required Coverage                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| Splits               | Chronological ordering and non-overlapping train, validation, and test periods      |
-| Leakage prevention   | No play, key event, commentary, or unsafe lineup data after minute 45 enters inputs |
-| Dataset construction | Match labels, 5-minute windows, numeric sequence shapes, and token sequence shapes  |
-| Tokenization         | Vocabulary is built from the train split only                                       |
-| Model                | Fusion GRU forward pass returns one home/draw/away logit vector per match           |
-| Metrics              | Accuracy, macro F1, log loss, and per-class report calculations                     |
+| Area                 | Required Coverage                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| Splits               | Chronological ordering and non-overlapping train, validation, and test periods       |
+| Leakage prevention   | No play, key event, commentary, or unsafe lineup data after minute 45 enters inputs  |
+| Dataset construction | Match labels, configured windows, numeric sequence shapes, and token sequence shapes |
+| Tokenization         | Vocabulary is built from the train split only                                        |
+| Model                | Fusion GRU forward pass returns one home/draw/away logit vector per match            |
+| Metrics              | Accuracy, macro F1, log loss, and per-class report calculations                      |
 
 Training quality should be verified with generated reports and metrics, not unit tests.
 

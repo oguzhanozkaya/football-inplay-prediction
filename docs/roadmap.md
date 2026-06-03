@@ -34,7 +34,7 @@ The repository is migrated to football in-play prediction. The current pipeline 
 - `just` exposes pipeline, quality, test, and documentation commands.
 - `just download` validates local ESPN raw data directories and writes raw source manifests.
 - `just preprocess` writes completed fixtures, minute-45 model sequences, feature metadata, vocabulary, and split summaries.
-- Preprocessing slices plays, key events, and commentary to 5-minute windows through minute 45.
+- Preprocessing slices plays, key events, and commentary to configured windows through minute 45.
 - Preprocessing builds the text vocabulary from the train split only.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded from first-model inputs.
 - `just train` trains only the single fusion GRU classifier.

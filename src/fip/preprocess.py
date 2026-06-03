@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import torch
 
 import fip.utils
 
@@ -31,6 +32,7 @@ class PreprocessResult:
 
     fixtures_path: Path
     dataset_path: Path
+    tensor_path: Path
     metadata_path: Path
     vocabulary_path: Path
     split_summary_path: Path
@@ -462,6 +464,36 @@ def _log_step(step: int, total_steps: int, message: str) -> None:
     print(f"preprocess: [{step}/{total_steps}] {message}")
 
 
+def _sequence_array(series: pd.Series, dtype: type) -> np.ndarray:
+    return np.stack([np.stack([np.asarray(window, dtype=dtype) for window in sequence]) for sequence in series])
+
+
+def build_training_tensor_artifact(dataset: pd.DataFrame) -> dict[str, object]:
+    """Build train-ready tensors with scaling fitted only on the train split."""
+
+    numeric_sequence = _sequence_array(dataset["numeric_sequence"], np.float32)
+    token_windows = _sequence_array(dataset["token_windows"], np.int64)
+    target = dataset["target"].to_numpy(dtype=np.int64)
+    splits = dataset["split"].to_numpy(dtype=str)
+    train_mask = splits == "train"
+    shape = numeric_sequence.shape
+    train_flat = numeric_sequence[train_mask].reshape(train_mask.sum() * shape[1], shape[2])
+    mean = train_flat.mean(axis=0, dtype=np.float64).astype(np.float32)
+    std = train_flat.std(axis=0, dtype=np.float64).astype(np.float32)
+    std[std < 1e-6] = 1.0
+    scaled_numeric = ((numeric_sequence - mean) / std).astype(np.float32)
+    split_indices = {
+        split: np.flatnonzero(splits == split).astype(np.int64) for split in ("train", "validation", "test")
+    }
+    return {
+        "numeric_sequence": torch.from_numpy(scaled_numeric.copy()),
+        "token_windows": torch.from_numpy(token_windows.copy()),
+        "target": torch.from_numpy(target.copy()),
+        "split_indices": {split: torch.from_numpy(indices.copy()) for split, indices in split_indices.items()},
+        "numeric_scaler": {"mean": torch.from_numpy(mean.copy()), "std": torch.from_numpy(std.copy())},
+    }
+
+
 def preprocess_raw_sources(paths: fip.utils.ProjectPaths = fip.utils.DEFAULT_PATHS) -> PreprocessResult:
     fip.utils.ensure_generated_directories(paths)
     raw_relative = paths.raw_data.relative_to(paths.root)
@@ -493,7 +525,7 @@ def preprocess_raw_sources(paths: fip.utils.ProjectPaths = fip.utils.DEFAULT_PAT
     lineups = _prepare_lineups(paths.raw_data, event_ids)
     print(f"preprocess: lineups rows={len(lineups):,}")
 
-    _log_step(6, total_steps, "building 5-minute text and numeric match windows")
+    _log_step(6, total_steps, f"building {fip.utils.WINDOW_MINUTES}-minute text and numeric match windows")
     print(
         "preprocess: rows "
         f"plays={len(plays)} key_events={len(key_events)} commentary={len(commentary)} lineups={len(lineups)}"
@@ -510,11 +542,13 @@ def preprocess_raw_sources(paths: fip.utils.ProjectPaths = fip.utils.DEFAULT_PAT
     _log_step(8, total_steps, "writing parquet and metadata artifacts")
     fixtures_path = paths.processed_data / "fixtures.parquet"
     dataset_path = paths.processed_data / "model_dataset.parquet"
+    tensor_path = paths.processed_data / "train_tensors.pt"
     metadata_path = paths.processed_data / "feature_metadata.json"
     vocabulary_path = paths.processed_data / "text_vocabulary.json"
     split_summary_path = paths.processed_data / "split_summary.json"
     fixtures.to_parquet(fixtures_path, index=False)
     dataset.to_parquet(dataset_path, index=False)
+    torch.save(build_training_tensor_artifact(dataset), tensor_path)
     metadata_path.write_text(json.dumps(metadata, indent=2, default=str), encoding="utf-8")
     vocabulary_path.write_text(json.dumps(vocabulary, indent=2), encoding="utf-8")
 
@@ -530,6 +564,7 @@ def preprocess_raw_sources(paths: fip.utils.ProjectPaths = fip.utils.DEFAULT_PAT
     return PreprocessResult(
         fixtures_path,
         dataset_path,
+        tensor_path,
         metadata_path,
         vocabulary_path,
         split_summary_path,

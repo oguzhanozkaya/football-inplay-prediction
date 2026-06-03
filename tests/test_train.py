@@ -9,12 +9,20 @@ def test_training_config_reads_architecture_environment(monkeypatch) -> None:
     monkeypatch.setenv("FIP_TEXT_KERNEL_SIZES", "2,4")
     monkeypatch.setenv("FIP_FUSION_HIDDEN_SIZE", "96")
     monkeypatch.setenv("FIP_GRU_HIDDEN_SIZE", "48")
+    monkeypatch.setenv("FIP_DATALOADER_WORKERS", "2")
+    monkeypatch.setenv("FIP_CACHE_TENSORS_ON_DEVICE", "false")
+    monkeypatch.setenv("FIP_MIXED_PRECISION", "false")
+    monkeypatch.setenv("FIP_COMPILE_MODEL", "true")
 
     config = fip.train.TrainingConfig.from_environment()
 
     assert config.text_kernel_sizes == (2, 4)
     assert config.fusion_hidden_size == 96
     assert config.gru_hidden_size == 48
+    assert config.dataloader_workers == 2
+    assert not config.cache_tensors_on_device
+    assert not config.mixed_precision
+    assert config.compile_model
 
 
 def test_match_tensor_dataset_shapes() -> None:

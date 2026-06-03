@@ -40,11 +40,11 @@ Each observation in `data/processed/model_dataset.parquet` represents one comple
 | ---------------- | ------------------------------------------------------------------------------------- |
 | Time keys        | Match date, split, league, event id                                                   |
 | Target           | Final result label and numeric class id                                               |
-| Text sequence    | One tokenized text window per 5-minute interval from 0-45                             |
-| Numeric sequence | One numeric feature vector per 5-minute interval from 0-45                            |
+| Text sequence    | One tokenized text window per configured interval from 0-45                           |
+| Numeric sequence | One numeric feature vector per configured interval from 0-45                          |
 | Leakage rule     | No play, key event, commentary, or substitution after minute 45 may enter model input |
 
-The default sequence has 9 windows: `0-5`, `5-10`, `10-15`, `15-20`, `20-25`, `25-30`, `30-35`, `35-40`, and `40-45`.
+The command default sequence has 3 windows: `0-15`, `15-30`, and `30-45`. Set `FIP_WINDOW_MINUTES=5` for 9 finer-grained windows.
 
 ## Outputs
 
@@ -65,6 +65,7 @@ Current artifacts:
 | `data/raw/source_manifest.json`        | `just download`               | Local raw file availability, byte counts, and hashes                 |
 | `data/processed/fixtures.parquet`      | `just preprocess`             | Completed fixtures with chronological splits and labels              |
 | `data/processed/model_dataset.parquet` | `just preprocess`             | Minute-45 text and numeric sequences                                 |
+| `data/processed/train_tensors.pt`      | `just preprocess`             | Train-ready scaled tensors and split indices                         |
 | `data/processed/feature_metadata.json` | `just preprocess`             | Feature names, window settings, class labels, and tokenizer settings |
 | `data/processed/text_vocabulary.json`  | `just preprocess`             | Train-split vocabulary built from project text                       |
 | `output/models/fusion_gru.pt`          | `just train`                  | Single hybrid classifier checkpoint                                  |
@@ -112,31 +113,35 @@ FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just train
 
 ## Configuration
 
-| Variable                       | Default   | Description                                |
-| ------------------------------ | --------- | ------------------------------------------ |
-| `FIP_SEED`                     | `447`     | Random seed for deterministic setup.       |
-| `FIP_EPOCHS`                   | `80`      | Maximum training epochs.                   |
-| `FIP_PATIENCE`                 | `12`      | Early-stopping patience.                   |
-| `FIP_BATCH_SIZE`               | `64`      | Mini-batch size.                           |
-| `FIP_LEARNING_RATE`            | `0.0001`  | Adam learning rate.                        |
-| `FIP_WEIGHT_DECAY`             | `0.0`     | Adam L2 weight decay.                      |
-| `FIP_EARLY_STOPPING_MIN_DELTA` | `0.00001` | Minimum validation-loss improvement.       |
-| `FIP_DEVICE`                   | `cuda`    | Training device: `cuda`, `cpu`, or `auto`. |
-| `FIP_CUTOFF_MINUTE`            | `45`      | Last match minute allowed in model inputs. |
-| `FIP_WINDOW_MINUTES`           | `5`       | Window size for match sequence steps.      |
-| `FIP_MAX_TOKENS_PER_WINDOW`    | `64`      | Maximum token ids per time window.         |
-| `FIP_MAX_VOCAB_SIZE`           | `20000`   | Maximum train-split vocabulary size.       |
-| `FIP_TOP_PLAY_TYPES`           | `24`      | Number of play type count features.        |
-| `FIP_TOP_KEY_EVENT_TYPES`      | `24`      | Number of key-event type count features.   |
-| `FIP_TOP_FORMATIONS`           | `16`      | Number of formation indicators.            |
-| `FIP_TEXT_EMBEDDING_DIM`       | `64`      | Random text embedding dimension.           |
-| `FIP_TEXT_CHANNEL_COUNT`       | `48`      | TextCNN channels per kernel size.          |
-| `FIP_TEXT_KERNEL_SIZES`        | `3,4,5`   | TextCNN kernel sizes.                      |
-| `FIP_TEXT_DROPOUT`             | `0.20`    | Text branch dropout.                       |
-| `FIP_NUMERIC_PROJECTION_SIZE`  | `64`      | Numeric projection width per window.       |
-| `FIP_FUSION_HIDDEN_SIZE`       | `128`     | Per-window fusion projection width.        |
-| `FIP_GRU_HIDDEN_SIZE`          | `128`     | GRU hidden state size.                     |
-| `FIP_DROPOUT`                  | `0.20`    | Fusion and classifier dropout.             |
+| Variable                       | Default   | Description                                                                 |
+| ------------------------------ | --------- | --------------------------------------------------------------------------- |
+| `FIP_SEED`                     | `447`     | Random seed for deterministic setup.                                        |
+| `FIP_EPOCHS`                   | `120`     | Maximum training epochs.                                                    |
+| `FIP_PATIENCE`                 | `1000`    | Early-stopping patience.                                                    |
+| `FIP_BATCH_SIZE`               | `128`     | Mini-batch size.                                                            |
+| `FIP_LEARNING_RATE`            | `0.001`   | Adam learning rate.                                                         |
+| `FIP_WEIGHT_DECAY`             | `0.0`     | Adam L2 weight decay.                                                       |
+| `FIP_EARLY_STOPPING_MIN_DELTA` | `0.00001` | Minimum validation-loss improvement.                                        |
+| `FIP_DEVICE`                   | `cuda`    | Training device: `cuda`, `cpu`, or `auto`.                                  |
+| `FIP_CUTOFF_MINUTE`            | `45`      | Last match minute allowed in model inputs.                                  |
+| `FIP_WINDOW_MINUTES`           | `15`      | Window size for match sequence steps.                                       |
+| `FIP_MAX_TOKENS_PER_WINDOW`    | `64`      | Maximum token ids per time window.                                          |
+| `FIP_MAX_VOCAB_SIZE`           | `6000`    | Maximum train-split vocabulary size.                                        |
+| `FIP_TOP_PLAY_TYPES`           | `24`      | Number of play type count features.                                         |
+| `FIP_TOP_KEY_EVENT_TYPES`      | `24`      | Number of key-event type count features.                                    |
+| `FIP_TOP_FORMATIONS`           | `16`      | Number of formation indicators.                                             |
+| `FIP_TEXT_EMBEDDING_DIM`       | `64`      | Random text embedding dimension.                                            |
+| `FIP_TEXT_CHANNEL_COUNT`       | `48`      | TextCNN channels per kernel size.                                           |
+| `FIP_TEXT_KERNEL_SIZES`        | `3,4,5`   | TextCNN kernel sizes.                                                       |
+| `FIP_TEXT_DROPOUT`             | `0.20`    | Text branch dropout.                                                        |
+| `FIP_NUMERIC_PROJECTION_SIZE`  | `64`      | Numeric projection width per window.                                        |
+| `FIP_FUSION_HIDDEN_SIZE`       | `64`      | Per-window fusion projection width.                                         |
+| `FIP_GRU_HIDDEN_SIZE`          | `128`     | GRU hidden state size.                                                      |
+| `FIP_DROPOUT`                  | `0.20`    | Fusion and classifier dropout.                                              |
+| `FIP_DATALOADER_WORKERS`       | `4`       | DataLoader worker count when tensors stay on CPU.                           |
+| `FIP_CACHE_TENSORS_ON_DEVICE`  | `true`    | Move the full tensor dataset to CUDA before training when CUDA is selected. |
+| `FIP_MIXED_PRECISION`          | `true`    | Use CUDA automatic mixed precision during training and prediction.          |
+| `FIP_COMPILE_MODEL`            | `false`   | Compile the PyTorch model with `torch.compile` before training.             |
 
 ## Success Criteria
 

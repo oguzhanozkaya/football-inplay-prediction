@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import torch
 
 import fip.preprocess
 import fip.utils
@@ -72,8 +73,12 @@ def test_preprocess_raw_sources_writes_leakage_safe_dataset(tmp_path: Path) -> N
     assert result.vocabulary_size > 2
     assert result.fixtures_path.is_file()
     assert result.dataset_path.is_file()
+    assert result.tensor_path.is_file()
     assert result.metadata_path.is_file()
     assert result.vocabulary_path.is_file()
+    tensors = torch.load(result.tensor_path, map_location="cpu", weights_only=False)
+    assert tensors["numeric_sequence"].shape[0] == result.model_rows
+    assert tensors["numeric_sequence"].dtype == torch.float32
     assert dataset.loc[dataset["eventId"] == 100, "target_label"].iloc[0] == "home"
     assert "must not enter" not in " ".join(dataset.loc[dataset["eventId"] == 100, "text_windows"].iloc[0])
     assert len(dataset.loc[0, "numeric_sequence"]) == fip.utils.window_count()

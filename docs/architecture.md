@@ -69,19 +69,13 @@ flowchart TD
     I --> J
 ```
 
-The default cutoff and window size create 9 sequence steps.
+The command defaults use a 45-minute cutoff and 15-minute windows, creating 3 sequence steps. Setting `FIP_WINDOW_MINUTES=5` creates 9 finer-grained sequence steps.
 
 | Window | Minute Range |
 | ------ | ------------ |
-| 0      | `0-5`        |
-| 1      | `5-10`       |
-| 2      | `10-15`      |
-| 3      | `15-20`      |
-| 4      | `20-25`      |
-| 5      | `25-30`      |
-| 6      | `30-35`      |
-| 7      | `35-40`      |
-| 8      | `40-45`      |
+| 0      | `0-15`       |
+| 1      | `15-30`      |
+| 2      | `30-45`      |
 
 ## Feature Rules
 
@@ -112,13 +106,13 @@ flowchart TD
 
 The model is `FusionGRUClassifier` in `src/fip/train.py`.
 
-For every 5-minute window:
+For every configured match-time window:
 
 - the text branch embeds token IDs and applies several 1D convolution kernels;
 - the numeric branch projects the numeric event vector;
 - both representations are concatenated and projected into a fused window vector.
 
-The GRU reads the 9 fused window vectors and the final hidden state feeds a three-class classifier.
+The GRU reads the fused window vectors and the final hidden state feeds a three-class classifier.
 
 ## Evaluation
 

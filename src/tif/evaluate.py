@@ -39,13 +39,20 @@ def regression_metrics(group: pd.DataFrame) -> dict[str, float | int]:
     error = prediction - actual
     actual_direction = np.sign(actual - previous)
     prediction_direction = np.sign(prediction - previous)
-    return {
+    metrics: dict[str, float | int] = {
         "row_count": int(len(group)),
         "mae": float(np.mean(np.abs(error))),
         "rmse": float(np.sqrt(np.mean(np.square(error)))),
         "bias": float(np.mean(error)),
         "direction_accuracy": float(np.mean(actual_direction == prediction_direction)),
     }
+    if "cpi_mom_trailing_std_12" in group.columns:
+        volatility = group["cpi_mom_trailing_std_12"].to_numpy(dtype=float)
+        valid = np.isfinite(volatility) & (volatility > 1e-12)
+        metrics["volatility_normalized_mae"] = (
+            float(np.mean(np.abs(error[valid]) / volatility[valid])) if valid.any() else float("nan")
+        )
+    return metrics
 
 
 def build_metrics_table(predictions: pd.DataFrame) -> pd.DataFrame:
@@ -76,14 +83,28 @@ def _write_metrics_markdown(path: Path, metrics: pd.DataFrame) -> None:
     lines = ["# Evaluation Metrics", ""]
     lines.append("MAE is the main metric. Positive baseline delta means lower MAE than the last-value baseline.")
     lines.append("")
-    lines.append("| Split | Model | Type | Rows | MAE | RMSE | Direction Accuracy | MAE Delta vs Last Value |")
-    lines.append("| ----- | ----- | ---- | ---- | --- | ---- | ------------------ | ----------------------- |")
-    for row in metrics.itertuples(index=False):
+    has_volatility = "volatility_normalized_mae" in metrics.columns
+    if has_volatility:
         lines.append(
+            "| Split | Model | Type | Rows | MAE | RMSE | Direction Accuracy | "
+            "Vol-Normalized MAE | MAE Delta vs Last Value |"
+        )
+        lines.append(
+            "| ----- | ----- | ---- | ---- | --- | ---- | ------------------ | "
+            "------------------ | ----------------------- |"
+        )
+    else:
+        lines.append("| Split | Model | Type | Rows | MAE | RMSE | Direction Accuracy | MAE Delta vs Last Value |")
+        lines.append("| ----- | ----- | ---- | ---- | --- | ---- | ------------------ | ----------------------- |")
+    for row in metrics.itertuples(index=False):
+        base = (
             f"| {row.split} | `{row.model_name}` | {row.model_type} | {row.row_count} | "
             f"{row.mae:.4f} | {row.rmse:.4f} | {row.direction_accuracy:.3f} | "
-            f"{row.mae_improvement_vs_last_value:.4f} |"
         )
+        if has_volatility:
+            lines.append(base + f"{row.volatility_normalized_mae:.4f} | {row.mae_improvement_vs_last_value:.4f} |")
+        else:
+            lines.append(base + f"{row.mae_improvement_vs_last_value:.4f} |")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

@@ -95,6 +95,8 @@ Feature generation uses conservative availability rules:
 | Delayed macro data | Industrial production and unemployment use month `t - 2` and earlier  |
 | Text documents     | Documents are included only when published by the end of month `t`    |
 
+The processed dataset includes `cpi_mom_trailing_std_12`, the leakage-safe 12-month trailing standard deviation of CPI MoM computed from month `t - 1` and earlier. Evaluation carries this column into prediction outputs and reports volatility-normalized MAE when the column is available.
+
 Candidate architectures are:
 
 | Model               | Purpose                                            |

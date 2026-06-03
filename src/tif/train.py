@@ -378,6 +378,8 @@ def _prediction_frame(dataset: pd.DataFrame, model_name: str, model_type: str, p
             "cpi_mom_lag_1": "previous_cpi_mom_percent",
         }
     )
+    if "cpi_mom_trailing_std_12" in dataset.columns:
+        frame["cpi_mom_trailing_std_12"] = dataset["cpi_mom_trailing_std_12"].to_numpy(dtype=float)
     frame["model_name"] = model_name
     frame["model_type"] = model_type
     frame["prediction_cpi_mom_percent"] = predictions.astype(float)

@@ -120,5 +120,8 @@ def test_preprocess_raw_sources_writes_processed_tables(tmp_path: Path) -> None:
     assert result.dataset_path.parent == paths.processed_data
 
     text_documents = pd.read_parquet(result.text_documents_path)
+    dataset = pd.read_parquet(result.dataset_path)
     assert text_documents["body_text"].str.contains("disinflation process").all()
     assert text_documents["published_at"].notna().all()
+    assert "cpi_mom_trailing_std_12" in dataset.columns
+    assert dataset["cpi_mom_trailing_std_12"].notna().all()

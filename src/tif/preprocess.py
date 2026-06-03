@@ -419,6 +419,20 @@ def _add_change_feature(
     feature_columns.append(feature_name)
 
 
+def _add_trailing_std_feature(
+    row: dict[str, object],
+    feature_columns: list[str],
+    monthly: pd.DataFrame,
+    end_month: pd.Timestamp,
+    source_column: str,
+    feature_name: str,
+    window: int = 12,
+) -> None:
+    values = np.array(_window_values(monthly, end_month, source_column, window), dtype=float)
+    row[feature_name] = float("nan") if np.isnan(values).any() else float(values.std(ddof=0))
+    feature_columns.append(feature_name)
+
+
 def _text_window_for_origin(documents: pd.DataFrame, forecast_origin_month_start: pd.Timestamp) -> tuple[str, int, int]:
     cutoff_date = forecast_origin_month_start + pd.offsets.MonthEnd(0)
     window_start = cutoff_date - pd.DateOffset(months=TEXT_LOOKBACK_MONTHS)
@@ -461,6 +475,14 @@ def build_model_dataset(
         _add_lag_features(row, feature_columns, cpi_monthly, origin_month, "cpi_yoy_percent", "cpi_yoy", CPI_LAGS)
         _add_rolling_features(
             row, feature_columns, cpi_monthly, _month_offset(origin_month, 1), "target_cpi_mom_percent", "cpi_mom"
+        )
+        _add_trailing_std_feature(
+            row,
+            feature_columns,
+            cpi_monthly,
+            _month_offset(origin_month, 1),
+            "target_cpi_mom_percent",
+            "cpi_mom_trailing_std_12",
         )
 
         for column in market_columns:
@@ -508,6 +530,7 @@ def build_model_dataset(
         "text_window_column": "text_window",
         "max_text_tokens": tif.utils.MAX_TOKENS,
         "text_lookback_months": TEXT_LOOKBACK_MONTHS,
+        "volatility_column": "cpi_mom_trailing_std_12",
         "market_columns": market_columns,
         "delayed_macro_columns": delayed_macro_columns,
         "split_summary": split_summary,

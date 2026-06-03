@@ -96,11 +96,11 @@ Pipeline and model settings are Python constants near the top of `fig.py`. Edit 
 | Constant                   | Default     | Description                                      |
 | -------------------------- | ----------- | ------------------------------------------------ |
 | `SEED`                     | `67`        | Random seed.                                     |
-| `EPOCHS`                   | `24000`     | Maximum training epochs.                         |
-| `PATIENCE`                 | `2400`      | Early-stopping patience.                         |
+| `EPOCHS`                   | `300`       | Maximum training epochs.                         |
+| `PATIENCE`                 | `30`        | Early-stopping patience.                         |
 | `BATCH_SIZE`               | `1024`      | Mini-batch size.                                 |
-| `LEARNING_RATE`            | `0.01`      | AdamW learning rate.                             |
-| `WEIGHT_DECAY`             | `0.0001`    | AdamW weight decay.                              |
+| `LEARNING_RATE`            | `0.001`     | AdamW learning rate.                             |
+| `WEIGHT_DECAY`             | `0.001`     | AdamW weight decay.                              |
 | `EARLY_STOPPING_MIN_DELTA` | `0.001`     | Minimum validation-loss improvement.             |
 | `DEVICE`                   | `cuda`      | Training device: `cuda`, `cpu`, or `auto`.       |
 | `CUTOFF_MINUTE`            | `60`        | Last match minute allowed in model inputs.       |
@@ -110,14 +110,16 @@ Pipeline and model settings are Python constants near the top of `fig.py`. Edit 
 | `TEMPORAL_KERNEL_SIZE`     | `3`         | Temporal convolution kernel size.                |
 | `TEMPORAL_BLOCK_COUNT`     | `2`         | Residual temporal convolution block count.       |
 | `FUSION_HIDDEN_SIZE`       | `128`       | Final fusion classifier width.                   |
-| `DROPOUT`                  | `0.06`      | Numeric and fusion dropout.                      |
+| `DROPOUT`                  | `0.15`      | Numeric and fusion dropout.                      |
+| `LABEL_SMOOTHING`          | `0.05`      | Cross-entropy label smoothing.                   |
+| `NORMALIZATION_GROUPS`     | `8`         | GroupNorm group count for temporal blocks.       |
 | `DATALOADER_WORKERS`       | `4`         | DataLoader worker count.                         |
 | `MIXED_PRECISION`          | `True`      | Use CUDA automatic mixed precision.              |
 | `COMPILE_MODEL`            | `False`     | Compile the PyTorch model before training.       |
 | `MATCH_LIMIT`              | `0`         | Optional smoke/debug match limit; `0` means all. |
 | `USE_PREPROCESS_CACHE`     | `True`      | Reuse matching `model_dataset.parquet` cache.    |
 | `FORCE_REPROCESS`          | `False`     | Ignore cache and rebuild processed data.         |
-| `CHECKPOINT_INTERVAL_EPOCHS` | `100`     | Save model checkpoint/history every N epochs; `0` disables periodic checkpoints. |
+| `CHECKPOINT_INTERVAL_EPOCHS` | `25`      | Save model checkpoint/history every N epochs; `0` disables periodic checkpoints. |
 
 ## Success Criteria
 

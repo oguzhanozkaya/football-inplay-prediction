@@ -95,7 +95,7 @@ The model is `NumericWindowTCN` in `fig.py`.
 For each match:
 
 - every 5-minute window is projected into a learned numeric representation;
-- residual 1D convolution blocks model short temporal patterns across the 12 windows;
+- residual 1D convolution blocks with GroupNorm model short temporal patterns across the 12 windows;
 - max pooling, mean pooling, and the final window state are concatenated for classification.
 
 There is no GRU, LSTM, TextCNN, or text embedding branch.

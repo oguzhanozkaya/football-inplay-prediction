@@ -45,8 +45,8 @@ KAGGLE_DATASET = "excel4soccer/espn-soccer-data"
 # Pipeline and model hyperparameters. Edit these constants before running the
 # script instead of passing environment variables.
 SEED = 67
-EPOCHS = 24000
-PATIENCE = 2400
+EPOCHS = 300
+PATIENCE = 30
 BATCH_SIZE = 1024
 LEARNING_RATE = 0.001
 WEIGHT_DECAY = 0.001
@@ -62,14 +62,16 @@ TEMPORAL_CHANNEL_COUNT = 128
 TEMPORAL_KERNEL_SIZE = 3
 TEMPORAL_BLOCK_COUNT = 2
 FUSION_HIDDEN_SIZE = 128
-DROPOUT = 0.24
+DROPOUT = 0.15
+LABEL_SMOOTHING = 0.05
+NORMALIZATION_GROUPS = 8
 DATALOADER_WORKERS = 4
 MIXED_PRECISION = True
 COMPILE_MODEL = False
 MATCH_LIMIT = 0
 USE_PREPROCESS_CACHE = True
 FORCE_REPROCESS = False
-CHECKPOINT_INTERVAL_EPOCHS = 100
+CHECKPOINT_INTERVAL_EPOCHS = 25
 PREPROCESS_CACHE_VERSION = 2
 
 LABELS = ("home", "draw", "away")
@@ -99,6 +101,8 @@ class Config:
     temporal_block_count: int = TEMPORAL_BLOCK_COUNT
     fusion_hidden_size: int = FUSION_HIDDEN_SIZE
     dropout: float = DROPOUT
+    label_smoothing: float = LABEL_SMOOTHING
+    normalization_groups: int = NORMALIZATION_GROUPS
     dataloader_workers: int = DATALOADER_WORKERS
     mixed_precision: bool = MIXED_PRECISION
     compile_model: bool = COMPILE_MODEL
@@ -700,16 +704,17 @@ class MatchDataset(Dataset):
 
 
 class TemporalConvBlock(nn.Module):
-    def __init__(self, channel_count: int, kernel_size: int, dropout: float) -> None:
+    def __init__(self, channel_count: int, kernel_size: int, dropout: float, normalization_groups: int) -> None:
         super().__init__()
         padding = kernel_size // 2
+        group_count = normalization_groups if channel_count % normalization_groups == 0 else 1
         self.block = nn.Sequential(
             nn.Conv1d(channel_count, channel_count, kernel_size=kernel_size, padding=padding),
-            nn.BatchNorm1d(channel_count),
+            nn.GroupNorm(group_count, channel_count),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Conv1d(channel_count, channel_count, kernel_size=kernel_size, padding=padding),
-            nn.BatchNorm1d(channel_count),
+            nn.GroupNorm(group_count, channel_count),
             nn.ReLU(),
         )
 
@@ -730,7 +735,12 @@ class NumericWindowTCN(nn.Module):
         )
         self.temporal_blocks = nn.Sequential(
             *[
-                TemporalConvBlock(config.temporal_channel_count, config.temporal_kernel_size, config.dropout)
+                TemporalConvBlock(
+                    config.temporal_channel_count,
+                    config.temporal_kernel_size,
+                    config.dropout,
+                    config.normalization_groups,
+                )
                 for _ in range(config.temporal_block_count)
             ]
         )
@@ -768,9 +778,11 @@ def set_seed(seed: int) -> None:
 
 
 def arrays_from_dataset(dataset: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
-    numeric = np.stack(dataset["numeric_sequence"].map(lambda values: np.asarray(values, dtype=np.float32))).astype(
-        np.float32
-    )
+    numeric = np.stack(
+        dataset["numeric_sequence"].map(
+            lambda values: np.stack([np.asarray(window, dtype=np.float32) for window in values])
+        )
+    ).astype(np.float32)
     target = dataset["target"].to_numpy(dtype=np.int64)
     split_indices = {
         split: np.flatnonzero(dataset["split"].to_numpy(dtype=str) == split).astype(np.int64)
@@ -892,7 +904,7 @@ def train_model(dataset: pd.DataFrame, metadata: dict[str, object], config: Conf
     model = NumericWindowTCN(numeric.shape[2], config).to(device)
     if config.compile_model:
         model = torch.compile(model)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
     use_amp = config.mixed_precision and device.type == "cuda"

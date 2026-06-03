@@ -402,7 +402,7 @@ def train_models(
     missing = [path for path in (dataset_path, metadata_path, vocabulary_path) if not path.is_file()]
     if missing:
         missing_paths = ", ".join(path.relative_to(paths.root).as_posix() for path in missing)
-        raise TrainingError(f"Missing processed artifacts: {missing_paths}. Run `just features` first.")
+        raise TrainingError(f"Missing processed artifacts: {missing_paths}. Run `just preprocess` first.")
 
     dataset = pd.read_parquet(dataset_path).sort_values("forecast_origin_month_start").reset_index(drop=True)
     metadata = _read_json(metadata_path)

@@ -43,13 +43,13 @@ The repository now contains the full command pipeline. The remaining project wor
 
 ### Phase 2: Data Pipeline
 
-| Task                                     | Output                                        |
-| ---------------------------------------- | --------------------------------------------- |
-| Implement source definitions             | Reproducible numeric and text source registry |
-| Download CPI and macro-financial data    | Raw files under `data/raw/`                   |
-| Download or scrape official text sources | Raw text and metadata under `data/raw/`       |
-| Preprocess raw sources                   | Cleaned tables under `data/interim/`          |
-| Align monthly observations               | One row per forecast origin and target month  |
+| Task                                     | Output                                                      |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Implement source definitions             | Reproducible numeric and text source registry               |
+| Download CPI and macro-financial data    | Raw files under `data/raw/`                                 |
+| Download or scrape official text sources | Raw text and metadata under `data/raw/`                     |
+| Preprocess raw sources                   | Cleaned tables and model-ready data under `data/processed/` |
+| Align monthly observations               | One row per forecast origin and target month                |
 
 ### Phase 3: Feature Engineering
 
@@ -102,11 +102,10 @@ The repository now contains the full command pipeline. The remaining project wor
 - Source registry exists for official CBRT CPI, CBRT FX, public FRED macro-financial series, and MPC text listing pages.
 - `just download` writes raw official source snapshots, official CBRT MPC document pages, and a source manifest.
 - `just download` writes official CBRT month-end FX XML snapshots and public FRED macro-financial CSV snapshots.
-- `just preprocess` writes `data/interim/cpi_mom.parquet`, `data/interim/numeric_series.parquet`, `data/interim/monthly_numeric.parquet`, and `data/interim/text_documents.parquet`.
-- `data/interim/numeric_series.parquet` includes normalized FX, Brent oil, industrial production, and unemployment observations.
-- `data/interim/monthly_numeric.parquet` includes the first monthly numeric feature base with FX, Brent oil, industrial production, and unemployment columns.
-- `data/interim/text_documents.parquet` includes document metadata, publication dates, clean body text, and body length counts.
-- `just features` writes a leakage-safe processed dataset, chronological splits, tokenizer vocabulary, and feature metadata.
+- `just preprocess` writes cleaned source tables, a leakage-safe processed dataset, chronological splits, tokenizer vocabulary, and feature metadata under `data/processed/`.
+- `data/processed/numeric_series.parquet` includes normalized FX, Brent oil, industrial production, and unemployment observations.
+- `data/processed/monthly_numeric.parquet` includes the monthly numeric feature base with FX, Brent oil, industrial production, and unemployment columns.
+- `data/processed/text_documents.parquet` includes document metadata, publication dates, clean body text, and body length counts.
 - `just train` trains last-value and rolling baselines, Ridge, Random Forest, numeric MLP, numeric GRU, TextCNN, and fusion models.
 - `just evaluate` writes JSON and Markdown metrics.
 - `just plots` writes CPI history, feature coverage, prediction, residual, and model-comparison figures.

@@ -22,7 +22,7 @@ Text data comes from official CBRT MPC meeting decisions and meeting summaries. 
 
 ## Feature Engineering
 
-The processed dataset is written by `just features` to `data/processed/model_dataset.parquet`.
+The processed dataset is written by `just preprocess` to `data/processed/model_dataset.parquet`.
 
 Feature availability rules are conservative:
 

@@ -68,7 +68,6 @@ The pipeline must not use data published after the forecast origin. This rule ap
 | Output                 | Format                | Directory             |
 | ---------------------- | --------------------- | --------------------- |
 | Raw downloaded data    | Source-native formats | `data/raw/`           |
-| Intermediate data      | CSV or Parquet        | `data/interim/`       |
 | Model-ready dataset    | Parquet               | `data/processed/`     |
 | Model checkpoints      | PyTorch checkpoint    | `output/models/`      |
 | Forecasts              | CSV and Parquet       | `output/predictions/` |
@@ -79,24 +78,24 @@ Generated data and model outputs are reproducible artifacts. They should be gene
 
 Current data foundation artifacts:
 
-| Artifact                               | Command           | Purpose                                               |
-| -------------------------------------- | ----------------- | ----------------------------------------------------- |
-| `data/raw/source_registry.json`        | `just download`   | Snapshot of configured sources                        |
-| `data/raw/source_manifest.json`        | `just download`   | Download status, local paths, hashes, and byte counts |
-| `data/raw/numeric/cbrt_fx_month_end/`  | `just download`   | Official CBRT month-end FX XML snapshots              |
-| `data/raw/numeric/fred/*.csv`          | `just download`   | Public FRED macro-financial CSV snapshots             |
-| `data/raw/text/documents/*.html`       | `just download`   | Official CBRT MPC document page snapshots             |
-| `data/interim/cpi_mom.parquet`         | `just preprocess` | Forecast-origin and target-month CPI MoM table        |
-| `data/interim/numeric_series.parquet`  | `just preprocess` | Normalized long numeric source observations           |
-| `data/interim/monthly_numeric.parquet` | `just preprocess` | Monthly numeric feature base                          |
-| `data/interim/text_documents.parquet`  | `just preprocess` | Official CBRT text metadata, dates, and body text     |
-| `data/processed/model_dataset.parquet` | `just features`   | Leakage-safe monthly modeling table                   |
-| `data/processed/feature_metadata.json` | `just features`   | Feature columns, split metadata, and tokenizer config |
-| `data/processed/text_vocabulary.json`  | `just features`   | Train-split vocabulary built from project text        |
-| `output/models/*.pt`                   | `just train`      | Raw PyTorch model checkpoints                         |
-| `output/predictions/predictions.*`     | `just train`      | Forecasts for all models and chronological splits     |
-| `output/reports/metrics.*`             | `just evaluate`   | MAE, RMSE, direction accuracy, and baseline deltas    |
-| `output/figures/*.png`                 | `just plots`      | CPI, prediction, residual, and comparison figures     |
+| Artifact                                 | Command           | Purpose                                               |
+| ---------------------------------------- | ----------------- | ----------------------------------------------------- |
+| `data/raw/source_registry.json`          | `just download`   | Snapshot of configured sources                        |
+| `data/raw/source_manifest.json`          | `just download`   | Download status, local paths, hashes, and byte counts |
+| `data/raw/numeric/cbrt_fx_month_end/`    | `just download`   | Official CBRT month-end FX XML snapshots              |
+| `data/raw/numeric/fred/*.csv`            | `just download`   | Public FRED macro-financial CSV snapshots             |
+| `data/raw/text/documents/*.html`         | `just download`   | Official CBRT MPC document page snapshots             |
+| `data/processed/cpi_mom.parquet`         | `just preprocess` | Forecast-origin and target-month CPI MoM table        |
+| `data/processed/numeric_series.parquet`  | `just preprocess` | Normalized long numeric source observations           |
+| `data/processed/monthly_numeric.parquet` | `just preprocess` | Monthly numeric feature base                          |
+| `data/processed/text_documents.parquet`  | `just preprocess` | Official CBRT text metadata, dates, and body text     |
+| `data/processed/model_dataset.parquet`   | `just preprocess` | Leakage-safe monthly modeling table                   |
+| `data/processed/feature_metadata.json`   | `just preprocess` | Feature columns, split metadata, and tokenizer config |
+| `data/processed/text_vocabulary.json`    | `just preprocess` | Train-split vocabulary built from project text        |
+| `output/models/*.pt`                     | `just train`      | Raw PyTorch model checkpoints                         |
+| `output/predictions/predictions.*`       | `just train`      | Forecasts for all models and chronological splits     |
+| `output/reports/metrics.*`               | `just evaluate`   | MAE, RMSE, direction accuracy, and baseline deltas    |
+| `output/figures/*.png`                   | `just plots`      | CPI, prediction, residual, and comparison figures     |
 
 ## Usage
 
@@ -141,7 +140,6 @@ The project also exposes stage-level commands:
 ```bash
 just download
 just preprocess
-just features
 just train
 just evaluate
 just plots

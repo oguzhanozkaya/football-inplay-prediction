@@ -24,7 +24,6 @@ class ProjectPaths:
     root: Path
     data: Path
     raw_data: Path
-    interim_data: Path
     processed_data: Path
     output: Path
     figures: Path
@@ -41,7 +40,6 @@ class ProjectPaths:
             root=root,
             data=data,
             raw_data=data / "raw",
-            interim_data=data / "interim",
             processed_data=data / "processed",
             output=output,
             figures=output / "figures",
@@ -53,7 +51,6 @@ class ProjectPaths:
     def generated_directories(self) -> tuple[Path, ...]:
         return (
             self.raw_data,
-            self.interim_data,
             self.processed_data,
             self.figures,
             self.models,

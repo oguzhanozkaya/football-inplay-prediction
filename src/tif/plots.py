@@ -46,7 +46,7 @@ def generate_plots(paths: tif.utils.ProjectPaths = tif.utils.DEFAULT_PATHS) -> P
     """Generate report figures from processed data, predictions, and metrics."""
 
     tif.utils.ensure_generated_directories(paths)
-    cpi_path = paths.interim_data / "cpi_mom.parquet"
+    cpi_path = paths.processed_data / "cpi_mom.parquet"
     dataset_path = paths.processed_data / "model_dataset.parquet"
     metadata_path = paths.processed_data / "feature_metadata.json"
     predictions_path = paths.predictions / "predictions.parquet"

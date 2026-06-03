@@ -35,7 +35,7 @@ flowchart LR
     B[Text Sources] --> C
     C --> D[data/raw]
     D --> E[Preprocess]
-    E --> F[data/interim]
+    E --> F[data/processed]
     F --> G[Monthly Alignment]
     G --> H[Feature Generation]
     H --> I[data/processed]

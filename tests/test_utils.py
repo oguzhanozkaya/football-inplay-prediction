@@ -13,7 +13,9 @@ def test_paths_and_generated_directories(tmp_path: Path) -> None:
 
     assert paths.root == tmp_path.resolve()
     assert paths.raw_data == tmp_path.resolve() / "data" / "raw"
+    assert paths.processed_data == tmp_path.resolve() / "data" / "processed"
     assert paths.reports == tmp_path.resolve() / "output" / "reports"
+    assert not (tmp_path.resolve() / "data" / "interim").exists()
     assert directories == paths.generated_directories()
     assert all(directory.is_dir() for directory in directories)
 

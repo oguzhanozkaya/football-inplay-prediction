@@ -24,7 +24,6 @@ module-root = "src"
 [project.scripts]
 tif-download = "tif.download:main"
 tif-preprocess = "tif.preprocess:main"
-tif-features = "tif.features:main"
 tif-train = "tif.train:main"
 tif-evaluate = "tif.evaluate:main"
 tif-plots = "tif.plots:main"

@@ -7,29 +7,39 @@ import tif.utils
 
 
 def write_required_numeric_sources(paths) -> None:
-    fx_path = paths.raw_data / tif.utils.CBRT_FX_MONTH_END.raw_path / "202604" / "30042026.xml"
-    fx_path.parent.mkdir(parents=True, exist_ok=True)
-    fx_path.write_text(
-        """
-        <Tarih_Date Tarih="30.04.2026" Date="30.04.2026">
-          <Currency Kod="USD" CurrencyCode="USD">
-            <Unit>1</Unit><ForexBuying>39.0000</ForexBuying><ForexSelling>39.1000</ForexSelling>
-          </Currency>
-          <Currency Kod="EUR" CurrencyCode="EUR">
-            <Unit>1</Unit><ForexBuying>43.0000</ForexBuying><ForexSelling>43.2000</ForexSelling>
-          </Currency>
-        </Tarih_Date>
-        """,
-        encoding="utf-8",
-    )
+    months = pd.date_range("2024-01-01", "2026-04-01", freq="MS")
+    for index, month_start in enumerate(months):
+        month_end = month_start + pd.offsets.MonthEnd(0)
+        fx_path = (
+            paths.raw_data / tif.utils.CBRT_FX_MONTH_END.raw_path / f"{month_end:%Y%m}" / f"{month_end:%d%m%Y}.xml"
+        )
+        fx_path.parent.mkdir(parents=True, exist_ok=True)
+        fx_path.write_text(
+            f"""
+            <Tarih_Date Tarih="{month_end:%d.%m.%Y}" Date="{month_end:%d.%m.%Y}">
+              <Currency Kod="USD" CurrencyCode="USD">
+                <Unit>1</Unit><ForexBuying>{30 + index:.4f}</ForexBuying><ForexSelling>{31 + index:.4f}</ForexSelling>
+              </Currency>
+              <Currency Kod="EUR" CurrencyCode="EUR">
+                <Unit>1</Unit><ForexBuying>{35 + index:.4f}</ForexBuying><ForexSelling>{36 + index:.4f}</ForexSelling>
+              </Currency>
+            </Tarih_Date>
+            """,
+            encoding="utf-8",
+        )
+
     fred_sources = {
-        tif.utils.FRED_BRENT_OIL: "observation_date,DCOILBRENTEU\n2026-04-29,83.0\n2026-04-30,84.0\n",
-        tif.utils.FRED_TURKEY_INDUSTRIAL_PRODUCTION: "observation_date,TURPRINTO01GYSAM\n2026-04-01,2.5\n",
-        tif.utils.FRED_TURKEY_UNEMPLOYMENT_RATE: "observation_date,LRHUTTTTTRM156S\n2026-04-01,8.6\n",
+        tif.utils.FRED_BRENT_OIL: "DCOILBRENTEU",
+        tif.utils.FRED_TURKEY_INDUSTRIAL_PRODUCTION: "TURPRINTO01GYSAM",
+        tif.utils.FRED_TURKEY_UNEMPLOYMENT_RATE: "LRHUTTTTTRM156S",
     }
-    for source, content in fred_sources.items():
+    for source, column in fred_sources.items():
         raw_path = paths.raw_data / source.raw_path
         raw_path.parent.mkdir(parents=True, exist_ok=True)
+        rows = [f"observation_date,{column}"]
+        for index, month_start in enumerate(months):
+            rows.append(f"{month_start:%Y-%m-%d},{10 + index:.2f}")
+        content = "\n".join(rows) + "\n"
         raw_path.write_text(content, encoding="utf-8")
 
 
@@ -56,12 +66,16 @@ def test_parse_cpi_fred_fx_and_monthly_numeric() -> None:
     assert monthly.loc[0, "brent_oil_usd_month_avg"] == 88.4
 
 
-def test_preprocess_raw_sources_writes_initial_interim_tables(tmp_path: Path) -> None:
+def test_preprocess_raw_sources_writes_processed_tables(tmp_path: Path) -> None:
     paths = tif.utils.build_paths(tmp_path)
     paths.raw_data.mkdir(parents=True)
     cpi_path = paths.raw_data / tif.utils.CBRT_CONSUMER_PRICES.raw_path
     cpi_path.parent.mkdir(parents=True)
-    cpi_path.write_text("02-2026 31.53 2.96 01-2026 30.65 4.84", encoding="utf-8")
+    cpi_months = pd.date_range("2024-01-01", "2026-04-01", freq="MS")
+    cpi_path.write_text(
+        " ".join(f"{month:%m-%Y} {30 + index:.2f} {1 + index / 100:.2f}" for index, month in enumerate(cpi_months)),
+        encoding="utf-8",
+    )
     write_required_numeric_sources(paths)
 
     for source in tif.utils.sources_by_category("text"):
@@ -78,7 +92,7 @@ def test_preprocess_raw_sources_writes_initial_interim_tables(tmp_path: Path) ->
             """
             <div id="tcmbMainContent">
               <div class="tcmb-content type-prg">
-                <p>April 22, 2026</p>
+                <p>April 22, 2024</p>
                 <p>The tight monetary policy stance will strengthen the disinflation process.</p>
               </div>
             </div>
@@ -88,14 +102,22 @@ def test_preprocess_raw_sources_writes_initial_interim_tables(tmp_path: Path) ->
 
     result = tif.preprocess.preprocess_raw_sources(paths)
 
-    assert result.cpi_target_rows == 2
-    assert result.numeric_series_rows == 7
-    assert result.monthly_numeric_rows == 1
+    assert result.cpi_target_rows == 28
+    assert result.numeric_series_rows == 168
+    assert result.monthly_numeric_rows == 28
     assert result.text_document_rows == 2
+    assert result.model_rows > 0
+    assert result.numeric_feature_count > 0
+    assert result.vocabulary_size > 2
     assert result.cpi_target_path.is_file()
     assert result.numeric_series_path.is_file()
     assert result.monthly_numeric_path.is_file()
     assert result.text_documents_path.is_file()
+    assert result.dataset_path.is_file()
+    assert result.metadata_path.is_file()
+    assert result.vocabulary_path.is_file()
+    assert result.split_summary_path.is_file()
+    assert result.dataset_path.parent == paths.processed_data
 
     text_documents = pd.read_parquet(result.text_documents_path)
     assert text_documents["body_text"].str.contains("disinflation process").all()

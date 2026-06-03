@@ -51,13 +51,12 @@ description: Conventions, rules and policies for project development.
 Pipeline commands:
 
 - `just download` downloads or scrapes source data.
-- `just preprocess` cleans raw source files and builds interim tables.
-- `just features` builds model-ready numeric and text features.
+- `just preprocess` cleans raw source files and builds model-ready numeric and text features.
 - `just train` trains baselines and deep learning models.
 - `just evaluate` computes validation and test metrics.
 - `just plots` generates report and article figures.
 
-`just run` executes the full pipeline in stage order: download, preprocess, features, train, evaluate, and plots.
+`just run` executes the full pipeline in stage order: download, preprocess, train, evaluate, and plots.
 
 Training defaults are intentionally moderate. Use environment variables for longer runs, for example `TIF_EPOCHS=200 TIF_PATIENCE=20 just train`.
 

@@ -18,22 +18,17 @@ sync:
 
 # Run the full pipeline
 [group('run')]
-run: download preprocess features train evaluate plots
+run: download preprocess train evaluate plots
 
 # Download numeric data and text sources
 [group('run')]
 download:
   uv run tif-download
 
-# Clean raw source files and build interim tables
+# Clean raw source files and build processed model data
 [group('run')]
 preprocess:
   uv run tif-preprocess
-
-# Build model-ready numeric and text features
-[group('run')]
-features:
-  uv run tif-features
 
 # Train baselines and deep learning models
 [group('run')]
